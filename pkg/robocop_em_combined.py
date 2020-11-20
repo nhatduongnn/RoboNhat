@@ -16,34 +16,52 @@ import gc
 from multiprocessing import Pool, Manager
 
 # create posterior table for each segment
-def createInstances(tf_prob, dbf_conc, coords, pwm, cshared, tmpDir, nucleotide_sequence, mnaseParams, tech, pool):
+def createInstances(tf_prob, dbf_conc, coords, pwm, cshared, tmpDir, nucleotide_sequence, mnaseParams, atacParams, pool):
     segments = len(coords)
     # manager = Manager()
     dshared = {} #manager.dict()
     dshared["robocopC"] = cshared 
+    
+    # print("TF probs:", sorted(tf_prob.keys()))
     robocop.createSharedDictionary(dshared, tf_prob, dbf_conc['background'], dbf_conc['nucleosome'], pwm, tmpDir, nucleotide_sequence)
+
     for t in range(segments):
         createInstance((t, dshared))
     # map(createInstance, [(t, dshared) for t in range(segments)])
     if mnaseParams != None:
         for s in range(segments):
-            updateMNaseEMMatNB((s, dshared, mnaseParams, tech))
+            updateMNaseEMMatNB((s, dshared, mnaseParams, "MNase"))
         # list(map(updateMNaseEMMatNB, [(s, dshared, mnaseParams) for s in range(segments)]))
+
+    if atacParams != None:
+        for s in range(segments):
+            updateMNaseEMMatNB((s, dshared, atacParams, "ATAC"))
+        # list(map(updateMNaseEMMatNB, [(s, dshared, mnaseParams) for s in range(segments)]))
+
     for t in range(segments):
         posterior_forward_backward_wrapper((t, dshared))
+
+    ptable = loadIdx(tmpDir, 0)['posterior_table']
+    # print("Posterior:", np.sum(ptable))
     # map(posterior_forward_backward_wrapper, [(t, dshared) for t in range(segments)])
     gc.collect()
+
     return dshared
     
-def runROBOCOP_EM(coordFile, config, outDir, tmpDir, pool, mnaseFile, dnaseFiles = ""):
+def runROBOCOP_EM(coordFile, config, outDir, tmpDir, pool, mnaseFile, atacFile):
 
-    fragRangeLong = tuple([int(x) for x in re.findall(r'\d+', config.get("main", "fragRangeLong"))])
-    fragRangeShort = tuple([int(x) for x in re.findall(r'\d+', config.get("main", "fragRangeShort"))])
-    fragRange = (fragRangeLong, fragRangeShort)
+    fragRangeLongMNase = tuple([int(x) for x in re.findall(r'\d+', config.get("main", "fragRangeLongMNase"))])
+    fragRangeShortMNase = tuple([int(x) for x in re.findall(r'\d+', config.get("main", "fragRangeShortMNase"))])
+    fragRangeLongATAC = tuple([int(x) for x in re.findall(r'\d+', config.get("main", "fragRangeLongATAC"))])
+    fragRangeShortATAC = tuple([int(x) for x in re.findall(r'\d+', config.get("main", "fragRangeShortATAC"))])
+
+    fragRangeMNase = (fragRangeLongMNase, fragRangeShortMNase)
+    fragRangeATAC = (fragRangeLongATAC, fragRangeShortATAC)
     nucFile = config.get("main", "nucFile")
+    atacFiles = atacFile
     mnaseFiles = mnaseFile #config.get("main", "mnaseFile")
     cshared = config.get("main", "cshared")
-    tech = config.get("main", "tech")
+    # tech = config.get("main", "tech")
     # chromosome segments in pandas data frame
     coords = pandas.read_csv(coordFile, sep = "\t")
 
@@ -52,9 +70,13 @@ def runROBOCOP_EM(coordFile, config, outDir, tmpDir, pool, mnaseFile, dnaseFiles
 
     # read nucleotide sequence and return 1 if successful
     nucleotide_sequence = getReads.getNucSequence(nucFile, tmpDir, coords)
+
     # read MNase-seq midpoint counts for long and short fragments
-    mnase_data_long, mnase_data_short = getReads.getMNase(mnaseFiles, tmpDir, coords, fragRange, tech = tech)
-    
+    mnase_data_long, mnase_data_short = getReads.getMNase(mnaseFiles, tmpDir, coords, fragRangeMNase, tech = "MNase")
+
+    # read ATAC-seq midpoint counts for long and short fragments
+    atac_data_long, atac_data_short = getReads.getMNase(atacFiles, tmpDir, coords, fragRangeATAC, tech = "ATAC")
+
     # make t copies of each tf_prob for every timepoint -- only 1 timepoint
     timepoints = len(coords)
     segments = len(coords)
@@ -70,20 +92,33 @@ def runROBOCOP_EM(coordFile, config, outDir, tmpDir, pool, mnaseFile, dnaseFiles
                 threshold = tf_prob[i][0]
             if i != 'unknown': thresholds.append(tf_prob[i][0])
             tName.append((i, tf_prob[i][0]))
-    print(thresholds)
-    print(tName)
+    #print(thresholds)
+    #print(tName)
+    print("Found TFs:", len(tf_prob.keys()))
     threshold = np.mean(thresholds) + 2*np.std(thresholds)
     # threshold = 10000
-    print("Threshold is:", threshold)
+    #print("Threshold is:", threshold)
     # exit(0)
     # get MNase-seq count parameters
+
     if mnaseFiles: 
-        mnaseParams = parameterize.getParamsMNase(mnaseFiles, config.get("main", "nucleosomeFile"), config.get("main", "tfFile"), fragRange, tech)
+        mnaseParams = parameterize.getParamsMNase(mnaseFiles, config.get("main", "nucleosomeFile"), config.get("main", "tfFile"), fragRangeMNase, tech = "MNase")
     else:
         mnaseParams = None
-    
+
+    # get MNase-seq count parameters
+    if atacFiles: 
+        atacParams = parameterize.getParamsMNase(mnaseFiles, config.get("main", "nucleosomeFile"), config.get("main", "tfFile"), fragRangeATAC, tech = "ATAC")
+    else:
+        atacParams = None
+
+    # ###########################################################################################################
+    # mnaseParams = pickle.load(open(outDir + "/negParamsMNase.pkl", "rb"))
+    # atacParams = pickle.load(open(outDir + "/negParamsATAC.pkl", "rb"))
+    # ###########################################################################################################
+
     # create shared dictionary for all segments and build HMM transition matrix
-    dshared = createInstances(tf_prob, dbf_conc, coords, pwm, cshared, tmpDir, nucleotide_sequence, mnaseParams, tech, pool)
+    dshared = createInstances(tf_prob, dbf_conc, coords, pwm, cshared, tmpDir, nucleotide_sequence, mnaseParams, atacParams, pool)
 
     # # Delete nucleotide and MNase files
     # os.system("rm dshared['tmpDir'] + nucleotides*npy")
@@ -93,6 +128,7 @@ def runROBOCOP_EM(coordFile, config, outDir, tmpDir, pool, mnaseFile, dnaseFiles
     likelihood = getLogLikelihood(segments, dshared['tmpDir'])
     fLike.write(str(likelihood) + '\n')
     fLike.close()
+    
     # print("Likelihood before EM:", getLogLikelihood(segments, dshared['tmpDir']))
     iterations = 10 #150 #200 #40
     countMNase = 0
@@ -100,14 +136,23 @@ def runROBOCOP_EM(coordFile, config, outDir, tmpDir, pool, mnaseFile, dnaseFiles
     lfMNaseShort = 1
     lfMNaseScale = 1
 
+
     print("Writing MNase params")
     if mnaseFiles != "":
         with open(outDir + "/negParamsMNase.pkl", 'wb') as writeFile:
             pickle.dump(mnaseParams, writeFile, pickle.HIGHEST_PROTOCOL)
 
+    print("Writing ATAC params")
+    if atacFiles != "":
+        with open(outDir + "/negParamsATAC.pkl", 'wb') as writeFile:
+            pickle.dump(atacParams, writeFile, pickle.HIGHEST_PROTOCOL)
+
+
     for i in range(iterations):
+        print("Iter:", i, file = sys.stderr)
         # Baum-Welch on transition probabilities
         background_prob, _tf_prob, nucleosome_prob = update_transition_probs(dshared, segments, tmpDir, threshold)
+        # print("Probs:", background_prob, _tf_prob, nucleosome_prob)
         tf_prob = np.array([_tf_prob[_] for _ in np.array(sorted(_tf_prob.keys()), order = 'c')])
         robocop.set_transition(dshared, tf_prob, background_prob, nucleosome_prob)
         robocop.set_initial_probs(dshared)
@@ -205,7 +250,7 @@ if __name__ == '__main__':
         config.read(configFile)
         nProcs = int(config.get("main", "nProcs"))
         # pool = Pool(processes = nProcs)
-        if not config.has_option("main", "bamFile"): bamFile = None
-        else: bamFile = config.get("main", "bamFile")
+        mnaseFile = config.get("main", "mnaseFile")
+        atacFile = config.get("main", "atacFile")
 
-        runROBOCOP_EM(coordFile, config, outDir, tmpDir, 1, bamFile)
+        runROBOCOP_EM(coordFile, config, outDir, tmpDir, 1, mnaseFile, atacFile)

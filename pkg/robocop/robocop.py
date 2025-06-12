@@ -172,7 +172,7 @@ def _build_transition_matrix(d, nuc_dinucleotide_model_file):
     tf_starts = d['tf_starts']
     tf_lens = d['tf_lens']
     # make sure the nucleosome dinucleotide model file exists 
-    robocopC.construct_transition_matrix.argtypes = [c_int, c_int, c_int, ndpointer(np.long, flags = "C_CONTIGUOUS"), ndpointer(np.long, flags = "C_CONTIGUOUS"), c_int, c_int, ndpointer(np.double, flags = "C_CONTIGUOUS"), POINTER(c_char)]
+    robocopC.construct_transition_matrix.argtypes = [c_int, c_int, c_int, ndpointer(np.longlong, flags = "C_CONTIGUOUS"), ndpointer(np.longlong, flags = "C_CONTIGUOUS"), c_int, c_int, ndpointer(np.double, flags = "C_CONTIGUOUS"), POINTER(c_char)]
     if d['nuc_present']:
         if not os.path.isfile(nuc_dinucleotide_model_file):
             raise IOError(
@@ -181,8 +181,8 @@ def _build_transition_matrix(d, nuc_dinucleotide_model_file):
     for t in range(d['timepoints']):
         t_mat = np.zeros((d['n_states'], d['n_states'])) 
         if d['n_tfs'] > 0:
-            tf_starts = tf_starts.astype(np.long)
-            tf_lens = tf_lens.astype(np.long)
+            tf_starts = tf_starts.astype(np.longlong)
+            tf_lens = tf_lens.astype(np.longlong)
             t_mat = t_mat.astype(np.double)
             robocopC.construct_transition_matrix(
                 d['n_states'], d['nuc_present'], d['nuc_start'], 
@@ -244,14 +244,14 @@ def build_data_emission_matrix(dshared, segment, n_obs = None):
 
 def update_data_emission_matrix_using_nucleotides(data_emission_matrix, dshared, segment, n_obs):
     robocopC = CDLL(dshared["robocopC"])
-    robocopC.build_emission_mat_from_pwm.argtypes = [ndpointer(np.long, flags = "C_CONTIGUOUS"), ndpointer(np.double, flags = "C_CONTIGUOUS"), c_int, c_int, c_int, c_int, ndpointer(np.double, flags = "C_CONTIGUOUS")]
+    robocopC.build_emission_mat_from_pwm.argtypes = [ndpointer(np.longlong, flags = "C_CONTIGUOUS"), ndpointer(np.double, flags = "C_CONTIGUOUS"), c_int, c_int, c_int, c_int, ndpointer(np.double, flags = "C_CONTIGUOUS")]
     # data_emission_matrix = d['data_emission_matrix']
     info_file = dshared['info_file']
     for t in range(dshared['timepoints']):
         nucleotides = info_file['segment_' + str(segment) + '/nucleotides'][:] # np.load(dshared['tmpDir'] + "nucleotides.idx" + str(segment) + ".npy")
         data_emat = data_emission_matrix[0]
         pwm = dshared['pwm_emission']
-        nucleotides = nucleotides.astype(np.long)
+        nucleotides = nucleotides.astype(np.longlong)
         pwm = pwm.astype(np.double)
         data_emat = data_emat.astype(np.double)
 
@@ -404,7 +404,7 @@ def set_transition(d, tf_prob, background_prob, nucleosome_prob):
     state to nucleosome start state
     """
     for t in range(d['timepoints']):
-        if tf_prob == []: tf_prob = d['tf_prob']
+        if len(tf_prob) == 0: tf_prob = d['tf_prob']
         else:
             d['tf_prob'] = tf_prob
             d['background_prob'] = background_prob
@@ -423,14 +423,14 @@ def set_initial_probs(d):
     The transitions of each dbf should be set before initial probs are set
     """
     robocopC = CDLL(d["robocopC"])
-    robocopC.set_initial_probs.argtypes = [ndpointer(np.long, flags = "C_CONTIGUOUS"), ndpointer(np.long, flags = "C_CONTIGUOUS"), c_int, c_int, c_int, c_int, c_int, c_int, ndpointer(np.double, flags = "C_CONTIGUOUS"), ndpointer(np.double, flags = "C_CONTIGUOUS")]
+    robocopC.set_initial_probs.argtypes = [ndpointer(np.longlong, flags = "C_CONTIGUOUS"), ndpointer(np.longlong, flags = "C_CONTIGUOUS"), c_int, c_int, c_int, c_int, c_int, c_int, ndpointer(np.double, flags = "C_CONTIGUOUS"), ndpointer(np.double, flags = "C_CONTIGUOUS")]
     initial_probs = np.zeros(d['n_states'])
     motif_starts = d['tf_starts']
     motif_lens = d['tf_lens']
     t_mat = d['transition_matrix']
     if d['n_tfs'] > 0:
-        motif_starts = motif_starts.astype(np.long)
-        motif_lens = motif_lens.astype(np.long)
+        motif_starts = motif_starts.astype(np.longlong)
+        motif_lens = motif_lens.astype(np.longlong)
         t_mat = t_mat.astype(np.double)
         initial_probs = initial_probs.astype(np.double)
         robocopC.set_initial_probs(
@@ -490,10 +490,10 @@ def posterior_forward_backward_loop(dshared, segment):
     ftable = np.zeros((n_obs, dshared['n_states']))
     btable = np.zeros((n_obs, dshared['n_states']))
     p_table = np.zeros((n_obs, dshared['n_states']))
-    parents_mat = parents_mat.astype(np.long)
-    children_mat = children_mat.astype(np.long)
-    n_parents = n_parents.astype(np.long)
-    n_children = n_children.astype(np.long)
+    parents_mat = parents_mat.astype(np.longlong)
+    children_mat = children_mat.astype(np.longlong)
+    n_parents = n_parents.astype(np.longlong)
+    n_children = n_children.astype(np.longlong)
     transition_mat = transition_mat.astype(np.double)
     data_emission_mat = data_emission_mat.astype(np.double)
     initial_probs = initial_probs.astype(np.double)
@@ -504,16 +504,16 @@ def posterior_forward_backward_loop(dshared, segment):
     bscaling_factors = bscaling_factors.astype(np.double)
     scaling_factors = scaling_factors.astype(np.longdouble)
     p_table = p_table.astype(np.double)
-    motif_starts = motif_starts.astype(np.long)
-    motif_lens = motif_lens.astype(np.long)
+    motif_starts = motif_starts.astype(np.longlong)
+    motif_lens = motif_lens.astype(np.longlong)
     
-    robocopC.find_parents_and_children.argtypes = [ndpointer(np.long, flags = "C_CONTIGUOUS"), ndpointer(np.long, flags = "C_CONTIGUOUS"), ndpointer(np.long, flags = "C_CONTIGUOUS"), ndpointer(np.long, flags = "C_CONTIGUOUS"), c_int, c_int, ndpointer(np.double, flags = "C_CONTIGUOUS")]
+    robocopC.find_parents_and_children.argtypes = [ndpointer(np.longlong, flags = "C_CONTIGUOUS"), ndpointer(np.longlong, flags = "C_CONTIGUOUS"), ndpointer(np.longlong, flags = "C_CONTIGUOUS"), ndpointer(np.longlong, flags = "C_CONTIGUOUS"), c_int, c_int, ndpointer(np.double, flags = "C_CONTIGUOUS")]
     robocopC.find_parents_and_children(parents_mat, children_mat,
                                          n_parents, n_children, dshared['n_states'],
                                          dshared['silent_states_begin'], transition_mat)
 
     # Forward algorithm
-    robocopC.fward.argtypes = [ndpointer(np.double, flags = "C_CONTIGUOUS"), ndpointer(np.double, flags = "C_CONTIGUOUS"), ndpointer(np.double, flags = "C_CONTIGUOUS"), ndpointer(np.double, flags = "C_CONTIGUOUS"), c_int, c_int, c_int, c_int, ndpointer(np.long, flags = "C_CONTIGUOUS"), ndpointer(np.long, flags = "C_CONTIGUOUS"), ndpointer(np.long, flags = "C_CONTIGUOUS"), ndpointer(np.long, flags = "C_CONTIGUOUS"), c_int, c_int, c_int, c_int, ndpointer(np.double, flags = "C_CONTIGUOUS"), ndpointer(np.double, flags = "C_CONTIGUOUS")]
+    robocopC.fward.argtypes = [ndpointer(np.double, flags = "C_CONTIGUOUS"), ndpointer(np.double, flags = "C_CONTIGUOUS"), ndpointer(np.double, flags = "C_CONTIGUOUS"), ndpointer(np.double, flags = "C_CONTIGUOUS"), c_int, c_int, c_int, c_int, ndpointer(np.longlong, flags = "C_CONTIGUOUS"), ndpointer(np.longlong, flags = "C_CONTIGUOUS"), ndpointer(np.longlong, flags = "C_CONTIGUOUS"), ndpointer(np.longlong, flags = "C_CONTIGUOUS"), c_int, c_int, c_int, c_int, ndpointer(np.double, flags = "C_CONTIGUOUS"), ndpointer(np.double, flags = "C_CONTIGUOUS")]
     robocopC.fward(
         initial_probs,
         transition_mat, data_emission_mat,
@@ -526,7 +526,7 @@ def posterior_forward_backward_loop(dshared, segment):
     )
 
     # Backward algorithm
-    robocopC.bward.argtypes = [ndpointer(np.double, flags = "C_CONTIGUOUS"), ndpointer(np.double, flags = "C_CONTIGUOUS"), ndpointer(np.double, flags = "C_CONTIGUOUS"), c_int, c_int, c_int, c_int, ndpointer(np.long, flags = "C_CONTIGUOUS"), ndpointer(np.long, flags = "C_CONTIGUOUS"), ndpointer(np.long, flags = "C_CONTIGUOUS"), ndpointer(np.long, flags = "C_CONTIGUOUS"), c_int, c_int, c_int, c_int, ndpointer(np.double, flags = "C_CONTIGUOUS"), ndpointer(np.double, flags = "C_CONTIGUOUS")]
+    robocopC.bward.argtypes = [ndpointer(np.double, flags = "C_CONTIGUOUS"), ndpointer(np.double, flags = "C_CONTIGUOUS"), ndpointer(np.double, flags = "C_CONTIGUOUS"), c_int, c_int, c_int, c_int, ndpointer(np.longlong, flags = "C_CONTIGUOUS"), ndpointer(np.longlong, flags = "C_CONTIGUOUS"), ndpointer(np.longlong, flags = "C_CONTIGUOUS"), ndpointer(np.longlong, flags = "C_CONTIGUOUS"), c_int, c_int, c_int, c_int, ndpointer(np.double, flags = "C_CONTIGUOUS"), ndpointer(np.double, flags = "C_CONTIGUOUS")]
     robocopC.bward(
         transition_mat, data_emission_mat,
         end_probs,

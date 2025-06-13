@@ -19,24 +19,56 @@ sys.path.insert(0, '../pkg/')
 sys.path.insert(0, '/home/rapiduser/programs/RoboCOP/pkg/')
 #from robocop.utils.parameters import computeMNaseTFPhisMus
 
-import numpy as np
 from collections import defaultdict
 from Bio.Seq import reverse_complement
 
+
 def computeMNaseTFPhisMus(bamFile, csvFile, tmpDir, fragRange, filename, offset=0):
     """
-    Negative binomial distribution parameters for DMS-seq data at TF binding sites.
-    Returns parameters for each TF, strand, and base position.
+    Compute negative binomial distribution parameters (mu and phi) for DMS-seq methylation 
+    data at transcription factor binding sites. Processes each TF individually if it has 
+    ≥50 binding sites, otherwise combines low-count TFs. Automatically calculates parameters 
+    for both Watson/Crick motif orientations and signal strands.
+    
+    Parameters:
+    -----------
+    bamFile : str
+        Path to the BAM file containing aligned sequencing reads with fragment information
+    csvFile : str  
+        Path to tab-separated file containing TF binding sites with columns:
+        chr, start, end, tf_name, score, strand
+    tmpDir : str
+        Path to temporary directory (currently unused but kept for compatibility)
+    fragRange : tuple or list
+        Fragment size range filter (currently unused but kept for compatibility)  
+    filename : str
+        Output filename prefix (currently unused but kept for compatibility)
+    offset : int, optional
+        Position offset adjustment (default: 0, currently unused)
+        
+    Returns:
+    --------
+    dict
+        Nested dictionary with structure:
+        {
+            'mu': {
+                'TF_name': {
+                    'Watson Motif': {
+                        'Watson Signal': {'A': array, 'C': array, 'G': array, 'T': array},
+                        'Crick Signal': {'A': array, 'C': array, 'G': array, 'T': array}
+                    },
+                    'Crick Motif': {
+                        'Watson Signal': {'A': array, 'C': array, 'G': array, 'T': array},
+                        'Crick Signal': {'A': array, 'C': array, 'G': array, 'T': array}
+                    }
+                }
+            },
+            'phi': { ... same structure as 'mu' ... }
+        }
+        
+        Arrays contain position-wise parameters (length = TF motif length)
+        TFs with <50 sites are grouped under 'combined_low_count' key
     """
-    import numpy as np
-    import pandas
-    import pysam
-    from Bio import SeqIO
-    from Bio.SeqFeature import SeqFeature, FeatureLocation
-    from rpy2.robjects.packages import importr
-    import rpy2.robjects.vectors as vectors
-    from contextlib import redirect_stdout
-    import io
     
     # Initialize R fitdistrplus
     fitdist = importr('fitdistrplus')
@@ -85,11 +117,11 @@ def computeMNaseTFPhisMus(bamFile, csvFile, tmpDir, fragRange, filename, offset=
                 'Watson Signal': tf_params['phi']['watson'],
                 'Crick Signal': tf_params['phi']['crick']
             }
-    
-        plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Watson Motif']['Watson Signal'], params_all['phi'][tf_name]['Watson Motif']['Watson Signal'], strand_label="Watson", tf_name=tf_name)
-        plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Watson Motif']['Crick Signal'], params_all['phi'][tf_name]['Watson Motif']['Crick Signal'], strand_label="Crick", tf_name=tf_name)
-        plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Crick Motif']['Watson Signal'], params_all['phi'][tf_name]['Crick Motif']['Watson Signal'], strand_label="Watson", tf_name=tf_name)
-        plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Crick Motif']['Crick Signal'], params_all['phi'][tf_name]['Crick Motif']['Crick Signal'], strand_label="Crick", tf_name=tf_name)
+
+        # plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Watson Motif']['Watson Signal'], params_all['phi'][tf_name]['Watson Motif']['Watson Signal'], strand_label="Watson", tf_name=tf_name)
+        # plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Watson Motif']['Crick Signal'], params_all['phi'][tf_name]['Watson Motif']['Crick Signal'], strand_label="Crick", tf_name=tf_name)
+        # plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Crick Motif']['Watson Signal'], params_all['phi'][tf_name]['Crick Motif']['Watson Signal'], strand_label="Watson", tf_name=tf_name)
+        # plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Crick Motif']['Crick Signal'], params_all['phi'][tf_name]['Crick Motif']['Crick Signal'], strand_label="Crick", tf_name=tf_name)
     
     
     # Handle TFs with < 50 sites as a combined group if needed
@@ -122,8 +154,45 @@ def computeMNaseTFPhisMus(bamFile, csvFile, tmpDir, fragRange, filename, offset=
 
 def compute_individual_DMSTFPhisMus(samfile, tfs_df, tf_name, motif_strand, fasta_file, fitdist, offset=0):
     """
-    Compute DMS-seq parameters for a single TF on a specific motif strand.
-    motif_strand: '+' for Watson Motif, '-' for Crick Motif
+    Compute negative binomial parameters for a single transcription factor on one motif strand.
+    Extracts methylation fragment counts at each nucleotide position, distinguishes Watson/Crick
+    signal strands, and fits negative binomial distributions across all binding sites.
+    
+    Parameters:
+    -----------
+    samfile : pysam.AlignmentFile
+        Opened BAM file object for reading sequencing data
+    tfs_df : pandas.DataFrame
+        DataFrame containing TF binding site information with columns:
+        chr, start, end, tf_name, score, strand
+    tf_name : str
+        Name of the specific transcription factor to process
+    motif_strand : str
+        Motif orientation: '+' for Watson Motif, '-' for Crick Motif
+    fasta_file : dict
+        Dictionary mapping chromosome names to Bio.SeqRecord.seq objects
+        containing reference genome sequences
+    fitdist : rpy2 R package
+        R fitdistrplus package imported via rpy2 for negative binomial fitting
+    offset : int, optional
+        Position offset adjustment (default: 0, currently unused)
+        
+    Returns:
+    --------
+    dict
+        Dictionary with structure:
+        {
+            'mu': {
+                'watson': {'A': array, 'C': array, 'G': array, 'T': array},
+                'crick': {'A': array, 'C': array, 'G': array, 'T': array}
+            },
+            'phi': {
+                'watson': {'A': array, 'C': array, 'G': array, 'T': array},
+                'crick': {'A': array, 'C': array, 'G': array, 'T': array}
+            }
+        }
+        
+        Arrays contain fitted parameters for each position in the TF motif
     """
     # Initialize count arrays for each signal strand and base
     base_names = ['A', 'C', 'G', 'T']
@@ -189,8 +258,46 @@ def compute_individual_DMSTFPhisMus(samfile, tfs_df, tf_name, motif_strand, fast
 
 def compute_combined_DMSTFPhisMus(samfile, tfs_df, tf_names_list, motif_strand, fasta_file, fitdist, offset=0):
     """
-    Compute combined parameters for multiple low-count TFs on a specific motif strand.
-    motif_strand: '+' for Watson Motif, '-' for Crick Motif
+    Compute combined negative binomial parameters for multiple low-count transcription factors.
+    Handles TFs with <50 binding sites by combining them into a single group for parameter 
+    estimation. Standardizes to the most common motif length and excludes sites with different lengths.
+    
+    Parameters:
+    -----------
+    samfile : pysam.AlignmentFile
+        Opened BAM file object for reading sequencing data
+    tfs_df : pandas.DataFrame
+        DataFrame containing TF binding site information with columns:
+        chr, start, end, tf_name, score, strand
+    tf_names_list : list
+        List of TF names to combine (typically those with <50 binding sites)
+    motif_strand : str
+        Motif orientation: '+' for Watson Motif, '-' for Crick Motif
+    fasta_file : dict
+        Dictionary mapping chromosome names to Bio.SeqRecord.seq objects
+        containing reference genome sequences
+    fitdist : rpy2 R package
+        R fitdistrplus package imported via rpy2 for negative binomial fitting
+    offset : int, optional
+        Position offset adjustment (default: 0, currently unused)
+        
+    Returns:
+    --------
+    dict
+        Dictionary with same structure as compute_individual_DMSTFPhisMus:
+        {
+            'mu': {
+                'watson': {'A': array, 'C': array, 'G': array, 'T': array},
+                'crick': {'A': array, 'C': array, 'G': array, 'T': array}
+            },
+            'phi': {
+                'watson': {'A': array, 'C': array, 'G': array, 'T': array},
+                'crick': {'A': array, 'C': array, 'G': array, 'T': array}
+            }
+        }
+        
+        Arrays contain fitted parameters for each position using combined data
+        Sites with lengths different from the mode are excluded
     """
     # Similar logic to individual but combining multiple TF types
     base_names = ['A', 'C', 'G', 'T']
@@ -259,8 +366,43 @@ def compute_combined_DMSTFPhisMus(samfile, tfs_df, tf_names_list, motif_strand, 
 
 def fit_nb_parameters(tf_counts, tf_len, num_sites, fitdist):
     """
-    Fit negative binomial parameters to the count data.
-    Returns structure: strand -> base -> position_array
+    Fit negative binomial distribution parameters to methylation count data.
+    Takes accumulated count data organized by signal strand and nucleotide base, reshapes 
+    to matrices, and fits position-wise distributions using R's fitdistrplus package.
+    
+    Parameters:
+    -----------
+    tf_counts : dict
+        Nested dictionary containing count data with structure:
+        {
+            'watson': {'A': list, 'C': list, 'G': list, 'T': list},
+            'crick': {'A': list, 'C': list, 'G': list, 'T': list}
+        }
+        Each list contains counts flattened across all sites and positions
+    tf_len : int
+        Length of the transcription factor motif (number of base positions)
+    num_sites : int
+        Number of TF binding sites used in the analysis
+    fitdist : rpy2 R package
+        R fitdistrplus package imported via rpy2 for negative binomial MLE fitting
+        
+    Returns:
+    --------
+    dict
+        Dictionary containing fitted parameters with structure:
+        {
+            'mu': {
+                'watson': {'A': array, 'C': array, 'G': array, 'T': array},
+                'crick': {'A': array, 'C': array, 'G': array, 'T': array}
+            },
+            'phi': {
+                'watson': {'A': array, 'C': array, 'G': array, 'T': array},
+                'crick': {'A': array, 'C': array, 'G': array, 'T': array}
+            }
+        }
+        
+        Arrays have length tf_len with fitted mu (mean) and phi (size/dispersion) parameters
+        Returns default parameters if fitting fails
     """
     import numpy as np
     from contextlib import redirect_stdout
@@ -304,8 +446,29 @@ def fit_nb_parameters(tf_counts, tf_len, num_sites, fitdist):
 
 def create_default_params():
     """
-    Create default parameters when fitting fails.
-    Returns structure: mu/phi -> watson/crick -> TF -> ACGT
+    Create default negative binomial parameters when fitting fails or no data is available.
+    Provides conservative estimates: mu=0.002 (low methylation) and phi=100 (high dispersion).
+    
+    Parameters:
+    -----------
+    None
+        
+    Returns:
+    --------
+    dict
+        Dictionary with default parameters using structure:
+        {
+            'mu': {
+                'watson': {'A': array, 'C': array, 'G': array, 'T': array},
+                'crick': {'A': array, 'C': array, 'G': array, 'T': array}
+            },
+            'phi': {
+                'watson': {'A': array, 'C': array, 'G': array, 'T': array},
+                'crick': {'A': array, 'C': array, 'G': array, 'T': array}
+            }
+        }
+        
+        All arrays have length 14 (default TF motif length) filled with default values
     """
     base_names = ['A', 'C', 'G', 'T']
     strand_names = ['watson', 'crick']
@@ -319,8 +482,32 @@ def create_default_params():
 
 def create_default_params_individual():
     """
-    Create default parameters for individual TF fitting.
-    Returns structure: strand -> base -> position_array
+    Create default negative binomial parameters for individual TF parameter fitting.
+    Provides fallback values when individual TF fitting fails, using same conservative 
+    estimates as create_default_params().
+    
+    Parameters:
+    -----------
+    None
+        
+    Returns:
+    --------
+    dict
+        Dictionary with default parameters using structure:
+        {
+            'mu': {
+                'watson': {'A': array, 'C': array, 'G': array, 'T': array},
+                'crick': {'A': array, 'C': array, 'G': array, 'T': array}
+            },
+            'phi': {
+                'watson': {'A': array, 'C': array, 'G': array, 'T': array},
+                'crick': {'A': array, 'C': array, 'G': array, 'T': array}
+            }
+        }
+        
+        All arrays have length 14 (default TF motif length) with:
+        - mu values: 0.002 (low methylation rate)
+        - phi values: 100 (high dispersion for biological variability)
     """
     import numpy as np
     base_names = ['A', 'C', 'G', 'T']
@@ -388,5 +575,11 @@ a = computeMNaseTFPhisMus("/home/rapiduser/projects/DMS-seq/DM1664/DM1664_trim_3
 
 # Okay maybe this is it
 print(a)
+
+        # plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Watson Motif']['Watson Signal'], params_all['phi'][tf_name]['Watson Motif']['Watson Signal'], strand_label="Watson", tf_name=tf_name)
+        # plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Watson Motif']['Crick Signal'], params_all['phi'][tf_name]['Watson Motif']['Crick Signal'], strand_label="Crick", tf_name=tf_name)
+        # plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Crick Motif']['Watson Signal'], params_all['phi'][tf_name]['Crick Motif']['Watson Signal'], strand_label="Watson", tf_name=tf_name)
+        # plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Crick Motif']['Crick Signal'], params_all['phi'][tf_name]['Crick Motif']['Crick Signal'], strand_label="Crick", tf_name=tf_name)
+    
 
 

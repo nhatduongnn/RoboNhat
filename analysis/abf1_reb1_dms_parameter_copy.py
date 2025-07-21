@@ -548,12 +548,24 @@ def plot_mu_phi_heatmaps(mu_dict, phi_dict, strand_label, tf_name):
     axes[0].set_ylabel("Base")
     fig.colorbar(im0, ax=axes[0], label="Mu")
 
+    # Add text annotations to mu heatmap
+    for i in range(num_bases):        # rows (bases)
+        for j in range(motif_len):   # cols (positions)
+            val = mu_matrix[i, j]
+            axes[0].text(j, i, f"{val:.3f}", ha="center", va="center", color="black", fontsize=6)
+
     im1 = axes[1].imshow(phi_matrix, aspect="auto", cmap="Blues")
     axes[1].set_title(f"{tf_name} - {strand_label} - Phi")
     axes[1].set_yticks(range(num_bases))
     axes[1].set_yticklabels(bases)
     axes[1].set_xlabel("Motif Position")
     fig.colorbar(im1, ax=axes[1], label="Phi")
+
+    # Add text annotations to phi heatmap
+    for i in range(num_bases):
+        for j in range(motif_len):
+            val = phi_matrix[i, j]
+            axes[1].text(j, i, f"{val:.3f}", ha="center", va="center", color="black", fontsize=6)
 
     plt.tight_layout()
     plt.show()

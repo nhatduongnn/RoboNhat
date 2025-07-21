@@ -272,15 +272,31 @@ def computeMNaseTFPhisMus(bamFile, csvFile, tmpDir, fragRange, filename, offset 
             plt.colorbar()  # Add a colorbar to show the intensity scale
             plt.show()
 
+            for i in range(4):        # rows (bases)
+                for j in range(full_cell_mu[0:4,:].shape[1]):   # cols (positions)
+                    val = full_cell_mu[i, j]
+                    plt.text(j, i, f"{val:.3f}", ha="center", va="center", color="black", fontsize=6)
+
+
             plt.imshow(full_cell_mu[0:4,:], cmap='Reds')
             plt.title('Mu (mean) values for Watson strand')
             plt.colorbar()  # Add a colorbar to show the intensity scale
             plt.show()
+                # Add text annotations to mu heatmap
+
+
+            for i in [4,5,6,7]:        # rows (bases)
+                for j in range(full_cell_mu[4:8,:].shape[1]):   # cols (positions)
+                    val = full_cell_mu[i, j]
+                    plt.text(j, i-4, f"{val:.3f}", ha="center", va="center", color="black", fontsize=6)
 
             plt.imshow(full_cell_mu[4:8,:], cmap='Reds')
             plt.title('Mu (mean) values for Crick strand')
             plt.colorbar()  # Add a colorbar to show the intensity scale
             plt.show()
+
+
+
 
 
             bob = np.concatenate(([tfCounts_watson_A_reshape.sum(axis=0)],[tfCounts_watson_C_reshape.sum(axis=0)],[tfCounts_watson_G_reshape.sum(axis=0)],[tfCounts_watson_T_reshape.sum(axis=0)]))
@@ -306,7 +322,7 @@ def computeMNaseTFPhisMus(bamFile, csvFile, tmpDir, fragRange, filename, offset 
     
     for i in ind_tfs:
         print(i)
-        if i == 'REB1':
+        if i == 'ABF1':
             compute_individual_DMSTFPhisMus(samfile, tfs, i, offset = 0)
     
     return params_all

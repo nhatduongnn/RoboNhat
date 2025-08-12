@@ -4,7 +4,7 @@ import numpy as np
 import pysam
 import matplotlib.pyplot as plt
 import math
-import pandas
+import pandas as pd
 from rpy2.rinterface_lib.embedded import RRuntimeError
 from rpy2.robjects.packages import importr
 import rpy2.robjects.vectors as vectors
@@ -23,7 +23,7 @@ from collections import defaultdict
 from Bio.Seq import reverse_complement
 
 
-def computeMNaseTFPhisMus(bamFile, csvFile, tmpDir, fragRange, filename, offset=0):
+def computeMNaseTFPhisMus(tech, bamFile, modkitFile, csvFile, tmpDir, fragRange, filename, offset=0):
     """
     Compute negative binomial distribution parameters (mu and phi) for DMS-seq methylation 
     data at transcription factor binding sites. Processes each TF individually if it has 
@@ -32,8 +32,12 @@ def computeMNaseTFPhisMus(bamFile, csvFile, tmpDir, fragRange, filename, offset=
     
     Parameters:
     -----------
+    tech : str
+        Specify whether or not the input data is DMS_seq or Fiber_seq
     bamFile : str
         Path to the BAM file containing aligned sequencing reads with fragment information
+    modkitFile : str
+        Path to the Modkit file containing pileup information of fiberseq-reads
     csvFile : str  
         Path to tab-separated file containing TF binding sites with columns:
         chr, start, end, tf_name, score, strand
@@ -73,8 +77,9 @@ def computeMNaseTFPhisMus(bamFile, csvFile, tmpDir, fragRange, filename, offset=
     # Initialize R fitdistrplus
     fitdist = importr('fitdistrplus')
     
-    # Load BAM file
-    samfile = pysam.AlignmentFile(bamFile, "rb")
+    if tech != "Fiber_seq":
+        # Load BAM file
+        samfile = pysam.AlignmentFile(bamFile, "rb")
     
     # Load reference genome - TODO: Make this configurable instead of hardcoded
     fasta_file = {}
@@ -82,7 +87,7 @@ def computeMNaseTFPhisMus(bamFile, csvFile, tmpDir, fragRange, filename, offset=
         fasta_file[seq_record.id] = seq_record.seq
     
     # Load TF binding sites
-    tfs = pandas.read_csv(csvFile, sep='\t', header=None)
+    tfs = pd.read_csv(csvFile, sep='\t', header=None)
     tfs = tfs.rename(columns={0: 'chr', 1: 'start', 2: 'end', 3: 'tf_name', 4: 'score', 5: 'strand'})
     
     # Filter TFs by count threshold
@@ -104,9 +109,15 @@ def computeMNaseTFPhisMus(bamFile, csvFile, tmpDir, fragRange, filename, offset=
         for motif_strand in ['+', '-']:
             motif_name = 'Watson Motif' if motif_strand == '+' else 'Crick Motif'
             
-            tf_params = compute_individual_DMSTFPhisMus(
-                samfile, tfs, tf_name, motif_strand, fasta_file, fitdist, offset
-            )
+            if tech != "Fiber_seq":
+                tf_params = compute_individual_DMSTFPhisMus(
+                    samfile, tfs, tf_name, motif_strand, fasta_file, fitdist, offset
+                )
+            elif tech == "Fiber_seq":
+                # For Fiber-seq, we need to handle the pileup data differently
+                tf_params = compute_individual_Fiber_seq_TFPhisMus(
+                    modkitFile, tfs, tf_name, motif_strand, fasta_file, fitdist, offset
+                )
             
             # Structure: TF -> motif_strand -> signal_strand -> base
             params_all['mu'][tf_name][motif_name] = {
@@ -148,7 +159,8 @@ def computeMNaseTFPhisMus(bamFile, csvFile, tmpDir, fragRange, filename, offset=
                 'Crick Signal': combined_params['phi']['crick']
             }
     
-    samfile.close()
+    if tech == "DMS_seq":
+        samfile.close()
     return params_all
 
 
@@ -162,7 +174,7 @@ def compute_individual_DMSTFPhisMus(samfile, tfs_df, tf_name, motif_strand, fast
     -----------
     samfile : pysam.AlignmentFile
         Opened BAM file object for reading sequencing data
-    tfs_df : pandas.DataFrame
+    tfs_df : pd.DataFrame
         DataFrame containing TF binding site information with columns:
         chr, start, end, tf_name, score, strand
     tf_name : str
@@ -218,51 +230,132 @@ def compute_individual_DMSTFPhisMus(samfile, tfs_df, tf_name, motif_strand, fast
             for strand in signal_strand_names
         }
         
-        # # Process reads overlapping this TF site
-        # region = samfile.fetch(chrm, r1['start'] - 1, r1['end'] + 1)
+        # Process reads overlapping this TF site
+        region = samfile.fetch(chrm, r1['start'] - 1, r1['end'] + 1)
         
-        # for read in region:
-        #     if read.template_length == 0:
-        #         continue
+        for read in region:
+            if read.template_length == 0:
+                continue
                 
-        #     if read.template_length > 0:  # Watson signal strand
-        #         frag_start = read.reference_start + 1 - 1  # 5' methylation site
-        #         if r1['start'] <= frag_start <= r1['end']:
-        #             nucleotide = SeqFeature(FeatureLocation(frag_start-1, frag_start)).extract(
-        #                 fasta_file[chrm]
-        #             )
-        #             pos = frag_start - r1['start']
-        #             if str(nucleotide) in base_names:
-        #                 site_counts['watson'][str(nucleotide)][pos] += 1
+            if read.template_length > 0:  # Watson signal strand
+                frag_start = read.reference_start + 1 - 1  # 5' methylation site
+                if r1['start'] <= frag_start <= r1['end']:
+                    nucleotide = SeqFeature(FeatureLocation(frag_start-1, frag_start)).extract(
+                        fasta_file[chrm]
+                    )
+                    pos = frag_start - r1['start']
+                    if str(nucleotide) in base_names:
+                        site_counts['watson'][str(nucleotide)][pos] += 1
                         
-        #     elif read.template_length < 0:  # Crick signal strand
-        #         frag_end = read.reference_end + 1 - 1 + 1  # 3' methylation site
-        #         if r1['start'] <= frag_end <= r1['end']:
-        #             nucleotide = SeqFeature(FeatureLocation(frag_end-1, frag_end)).extract(
-        #                 fasta_file[chrm]
-        #             )
-        #             pos = frag_end - r1['start']
-        #             # Reverse complement mapping for crick signal strand
-        #             complement_map = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
-        #             if str(nucleotide) in complement_map:
-        #                 site_counts['crick'][complement_map[str(nucleotide)]][pos] += 1
-                        # New code to handle different file structure for base modifications
+            elif read.template_length < 0:  # Crick signal strand
+                frag_end = read.reference_end + 1 - 1 + 1  # 3' methylation site
+                if r1['start'] <= frag_end <= r1['end']:
+                    nucleotide = SeqFeature(FeatureLocation(frag_end-1, frag_end)).extract(
+                        fasta_file[chrm]
+                    )
+                    pos = frag_end - r1['start']
+                    # Reverse complement mapping for crick signal strand
+                    complement_map = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
+                    if str(nucleotide) in complement_map:
+                        site_counts['crick'][complement_map[str(nucleotide)]][pos] += 1
+        
+        # Accumulate counts across all sites for this TF
+        for strand in signal_strand_names:
+            for base in base_names:
+                tf_counts[strand][base].extend(site_counts[strand][base])
+    
+    # Fit negative binomial parameters
+    return fit_nb_parameters(tf_counts, tf_len, len(one_tf_df), fitdist)
 
-        modified_bases_file = "path/to/modified_bases_file.txt"  # Update with actual file path
-        modified_bases_df = pandas.read_csv(modified_bases_file, sep='\t', header=None)
+
+def compute_individual_Fiber_seq_TFPhisMus(modkitFile, tfs_df, tf_name, motif_strand, fasta_file, fitdist, offset=0):
+    """
+    Compute negative binomial parameters for a single transcription factor on one motif strand.
+    Extracts methylation fragment counts at each nucleotide position, distinguishes Watson/Crick
+    signal strands, and fits negative binomial distributions across all binding sites.
+    
+    Parameters:
+    -----------
+    samfile : pysam.AlignmentFile
+        Opened BAM file object for reading sequencing data
+    tfs_df : pd.DataFrame
+        DataFrame containing TF binding site information with columns:
+        chr, start, end, tf_name, score, strand
+    tf_name : str
+        Name of the specific transcription factor to process
+    motif_strand : str
+        Motif orientation: '+' for Watson Motif, '-' for Crick Motif
+    fasta_file : dict
+        Dictionary mapping chromosome names to Bio.SeqRecord.seq objects
+        containing reference genome sequences
+    fitdist : rpy2 R package
+        R fitdistrplus package imported via rpy2 for negative binomial fitting
+    offset : int, optional
+        Position offset adjustment (default: 0, currently unused)
+        
+    Returns:
+    --------
+    dict
+        Dictionary with structure:
+        {
+            'mu': {
+                'watson': {'A': array, 'C': array, 'G': array, 'T': array},
+                'crick': {'A': array, 'C': array, 'G': array, 'T': array}
+            },
+            'phi': {
+                'watson': {'A': array, 'C': array, 'G': array, 'T': array},
+                'crick': {'A': array, 'C': array, 'G': array, 'T': array}
+            }
+        }
+        
+        Arrays contain fitted parameters for each position in the TF motif
+    """
+    # Initialize count arrays for each signal strand and base
+    base_names = ['A', 'C', 'G', 'T']
+    signal_strand_names = ['watson', 'crick']
+    
+    tf_counts = {strand: {base: [] for base in base_names} for strand in signal_strand_names}
+    
+    # Get all sites for this TF on the specified motif strand
+    one_tf_df = tfs_df.loc[(tfs_df['tf_name'] == tf_name) & (tfs_df['strand'] == motif_strand)]
+    
+    if len(one_tf_df) == 0:
+        return create_default_params_individual()
+    
+    # Get TF length (assuming consistent length for this TF)
+    tf_len = one_tf_df.iloc[0]['end'] - one_tf_df.iloc[0]['start'] + 1
+
+    modified_bases_df = pd.read_csv(modkitFile, sep='\t', header=None)
+    # Split the 9th column into multiple columns
+    split_columns = modified_bases_df[9].str.split(' ', expand=True)
+    split_columns.columns = [i for i in range(9,9+split_columns.shape[1])]
+
+    # Drop the original 9th column and concatenate the new columns back to the original DataFrame
+    modified_bases_df = pd.concat([modified_bases_df.drop(columns=[9]), split_columns], axis=1)
+    
+    for i1, r1 in one_tf_df.iterrows():
+        chrm = r1['chr']
+        
+        # Initialize counts for this TF site
+        site_counts = {
+            strand: {base: [1] * tf_len for base in base_names} 
+            for strand in signal_strand_names
+        }
+
 
         # Filter for relevant rows based on chromosome and position
         relevant_rows = modified_bases_df[
             (modified_bases_df[0] == chrm) &
-            (modified_bases_df[1] <= r1['end']) &
+            (modified_bases_df[1] < r1['end']) &
             (modified_bases_df[2] >= r1['start'])
         ]
 
         for _, row in relevant_rows.iterrows():
             modified_base = row[3].upper()
             strand_info = row[5]
-            count = row[11]
-            pos = modified_bases_df[2] - r1['start']
+            count = int(row[11])
+            ## row[1] is bed file start coordinate which is 0 indexed. Gotta add 1 to it to substract by r1['start'] which is 1 indexed
+            pos = row[1] + 1 - r1['start']
 
             if strand_info == '+':
                 if modified_base in base_names:
@@ -290,7 +383,7 @@ def compute_combined_DMSTFPhisMus(samfile, tfs_df, tf_names_list, motif_strand, 
     -----------
     samfile : pysam.AlignmentFile
         Opened BAM file object for reading sequencing data
-    tfs_df : pandas.DataFrame
+    tfs_df : pd.DataFrame
         DataFrame containing TF binding site information with columns:
         chr, start, end, tf_name, score, strand
     tf_names_list : list
@@ -602,7 +695,9 @@ def plot_mu_phi_heatmaps(mu_dict, phi_dict, strand_label, tf_name):
 
 
 
-a = computeMNaseTFPhisMus("/home/rapiduser/projects/DMS-seq/DM1664/DM1664_trim_3prime_18bp_remaining_name_change_sorted.bam",\
+a = computeMNaseTFPhisMus("Fiber_seq",\
+                          "/home/rapiduser/projects/DMS-seq/DM1664/DM1664_trim_3prime_18bp_remaining_name_change_sorted.bam",\
+                          "/home/rapiduser/projects/Fiber_seq/03202025_barcode01_sup_model_sorted_pileup_all_chr",\
                           "/home/rapiduser/programs/RoboCOP/analysis/inputs/MacIsaac_sacCer3_liftOver_Abf1_Reb1.bed",\
                             "/home/rapiduser/programs/RoboCOP/analysis/robocop_train/tmpDir",\
                             (0, 80),\

@@ -129,10 +129,10 @@ def computeMNaseTFPhisMus(tech, bamFile, modkitFile, csvFile, tmpDir, fragRange,
                 'Crick Signal': tf_params['phi']['crick']
             }
 
-        # plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Watson Motif']['Watson Signal'], params_all['phi'][tf_name]['Watson Motif']['Watson Signal'], strand_label="Watson", tf_name=tf_name)
-        # plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Watson Motif']['Crick Signal'], params_all['phi'][tf_name]['Watson Motif']['Crick Signal'], strand_label="Crick", tf_name=tf_name)
-        # plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Crick Motif']['Watson Signal'], params_all['phi'][tf_name]['Crick Motif']['Watson Signal'], strand_label="Watson", tf_name=tf_name)
-        # plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Crick Motif']['Crick Signal'], params_all['phi'][tf_name]['Crick Motif']['Crick Signal'], strand_label="Crick", tf_name=tf_name)
+        plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Watson Motif']['Watson Signal'], params_all['phi'][tf_name]['Watson Motif']['Watson Signal'], strand_label="Watson", tf_name=tf_name)
+        plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Watson Motif']['Crick Signal'], params_all['phi'][tf_name]['Watson Motif']['Crick Signal'], strand_label="Crick", tf_name=tf_name)
+        plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Crick Motif']['Watson Signal'], params_all['phi'][tf_name]['Crick Motif']['Watson Signal'], strand_label="Watson", tf_name=tf_name)
+        plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Crick Motif']['Crick Signal'], params_all['phi'][tf_name]['Crick Motif']['Crick Signal'], strand_label="Crick", tf_name=tf_name)
     
     
     # Handle TFs with < 50 sites as a combined group if needed
@@ -219,7 +219,8 @@ def compute_individual_DMSTFPhisMus(samfile, tfs_df, tf_name, motif_strand, fast
         return create_default_params_individual()
     
     # Get TF length (assuming consistent length for this TF)
-    tf_len = one_tf_df.iloc[0]['end'] - one_tf_df.iloc[0]['start'] + 1
+    # Since the input is a bed file, end - start, no need to add 1 to calculate the TF length
+    tf_len = one_tf_df.iloc[0]['end'] - one_tf_df.iloc[0]['start']
     
     for i1, r1 in one_tf_df.iterrows():
         chrm = r1['chr']
@@ -323,7 +324,7 @@ def compute_individual_Fiber_seq_TFPhisMus(modkitFile, tfs_df, tf_name, motif_st
         return create_default_params_individual()
     
     # Get TF length (assuming consistent length for this TF)
-    tf_len = one_tf_df.iloc[0]['end'] - one_tf_df.iloc[0]['start'] + 1
+    tf_len = one_tf_df.iloc[0]['end'] - one_tf_df.iloc[0]['start']
 
     modified_bases_df = pd.read_csv(modkitFile, sep='\t', header=None)
     # Split the 9th column into multiple columns
@@ -347,15 +348,16 @@ def compute_individual_Fiber_seq_TFPhisMus(modkitFile, tfs_df, tf_name, motif_st
         relevant_rows = modified_bases_df[
             (modified_bases_df[0] == chrm) &
             (modified_bases_df[1] < r1['end']) &
-            (modified_bases_df[2] >= r1['start'])
+            (modified_bases_df[2] > r1['start'])
         ]
 
         for _, row in relevant_rows.iterrows():
             modified_base = row[3].upper()
             strand_info = row[5]
             count = int(row[11])
-            ## row[1] is bed file start coordinate which is 0 indexed. Gotta add 1 to it to substract by r1['start'] which is 1 indexed
-            pos = row[1] + 1 - r1['start']
+            ## row[1] is bed file start coordinate which is 0 indexed. 
+            ##  r1['start'] is also from a bed file and is also 0 indexed
+            pos = row[1] - r1['start']
 
             if strand_info == '+':
                 if modified_base in base_names:
@@ -430,7 +432,7 @@ def compute_combined_DMSTFPhisMus(samfile, tfs_df, tf_names_list, motif_strand, 
         return create_default_params_individual()
     
     # Use a standard length or the most common length
-    tf_lengths = combined_df['end'] - combined_df['start'] + 1
+    tf_lengths = combined_df['end'] - combined_df['start']
     tf_len = int(tf_lengths.mode().iloc[0])  # Most common length
     
     # Process each site (similar to individual function)
@@ -589,7 +591,7 @@ def create_default_params():
     """
     base_names = ['A', 'C', 'G', 'T']
     strand_names = ['watson', 'crick']
-    tf_len = 14  # Default length
+    tf_len = 13  # Default length
     
     return {
         'mu': {strand: {base: np.full(tf_len, 0.002) for base in base_names} for strand in strand_names},
@@ -629,7 +631,7 @@ def create_default_params_individual():
     import numpy as np
     base_names = ['A', 'C', 'G', 'T']
     strand_names = ['watson', 'crick']
-    tf_len = 14  # Default length
+    tf_len = 13  # Default length
     
     return {
         'mu': {strand: {base: np.full(tf_len, 0.002) for base in base_names} for strand in strand_names},

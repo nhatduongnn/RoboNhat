@@ -145,236 +145,379 @@ def plot_aggregate_density_plot(data_path, positions):
     return ax,h_mat
 
 
-def plot_motif_logo(fasta_file_dir, TF_start_pos_original, seq_width, shift, ax1, ax2, fasta_type='number', bases='AG'):
-    """
-    Plot sequence motif logos (probability and information content) centered around specified genomic positions.
+# def plot_motif_logo(fasta_file_dir, TF_start_pos_original, seq_width, shift, ax1, ax2, fasta_type='number', bases='AG'):
+#     """
+#     Plot sequence motif logos (probability and information content) centered around specified genomic positions.
 
-    This function extracts sequences from a FASTA file around given genomic coordinates,
-    calculates base probabilities and information content, and generates sequence logos 
-    showing the distributions of selected bases (A/G or A only or G only) on positive and negative strands.
+#     This function extracts sequences from a FASTA file around given genomic coordinates,
+#     calculates base probabilities and information content, and generates sequence logos 
+#     showing the distributions of selected bases (A/G or A only or G only) on positive and negative strands.
 
-    Parameters
-    ----------
-    fasta_file_dir : str
-        Path to the FASTA file containing genome sequences.
+#     Parameters
+#     ----------
+#     fasta_file_dir : str
+#         Path to the FASTA file containing genome sequences.
 
-    TF_start_pos_original : pandas.DataFrame
-        A DataFrame with at least two columns: 
-        'chr' (chromosome identifier) and 'pos' (genomic position) around which to extract sequence windows.
+#     TF_start_pos_original : pandas.DataFrame
+#         A DataFrame with at least two columns: 
+#         'chr' (chromosome identifier) and 'pos' (genomic position) around which to extract sequence windows.
 
-    seq_width : int
-        Width of the sequence window (in base pairs) centered at each position.
+#     seq_width : int
+#         Width of the sequence window (in base pairs) centered at each position.
 
-    shift : int
-        Amount to shift each input position before extracting the sequence window.
+#     shift : int
+#         Amount to shift each input position before extracting the sequence window.
 
-    ax1 : matplotlib.axes.Axes
-        Matplotlib axis object for plotting the probability logo.
+#     ax1 : matplotlib.axes.Axes
+#         Matplotlib axis object for plotting the probability logo.
 
-    ax2 : matplotlib.axes.Axes
-        Matplotlib axis object for plotting the information content (bit) logo.
+#     ax2 : matplotlib.axes.Axes
+#         Matplotlib axis object for plotting the information content (bit) logo.
 
-    fasta_type : str, optional, default='number'
-        Format of chromosome names in the FASTA file:
-        - 'roman' : e.g., 'chrI', 'chrII', etc.
-        - 'number' : e.g., 'chr1', 'chr2', etc.
+#     fasta_type : str, optional, default='number'
+#         Format of chromosome names in the FASTA file:
+#         - 'roman' : e.g., 'chrI', 'chrII', etc.
+#         - 'number' : e.g., 'chr1', 'chr2', etc.
 
-    bases : str, optional, default='AG'
-        Bases to display in the logos:
-        - 'AG' : Plot A/G bases upwards and C/T bases downwards.
-        - 'A'  : Plot only A bases upwards (flip T downwards).
-        - 'G'  : Plot only G bases upwards (flip C downwards).
+#     bases : str, optional, default='AG'
+#         Bases to display in the logos:
+#         - 'AG' : Plot A/G bases upwards and C/T bases downwards.
+#         - 'A'  : Plot only A bases upwards (flip T downwards).
+#         - 'G'  : Plot only G bases upwards (flip C downwards).
 
-    Returns
-    -------
-    seq_df : pandas.DataFrame
-        DataFrame containing the extracted sequence windows.
+#     Returns
+#     -------
+#     seq_df : pandas.DataFrame
+#         DataFrame containing the extracted sequence windows.
 
-    seq_df_base_prob : pandas.DataFrame
-        DataFrame containing the per-position base probabilities (before strand flipping).
+#     seq_df_base_prob : pandas.DataFrame
+#         DataFrame containing the per-position base probabilities (before strand flipping).
 
-    prob_logo : logomaker.Logo
-        Logomaker object for the probability logo.
+#     prob_logo : logomaker.Logo
+#         Logomaker object for the probability logo.
 
-    bit_logo : logomaker.Logo
-        Logomaker object for the information content (bit) logo.
+#     bit_logo : logomaker.Logo
+#         Logomaker object for the information content (bit) logo.
 
-    Notes
-    -----
-    - Positions that extend beyond chromosome boundaries are skipped with a warning printed.
-    - Base probabilities for C/T bases are flipped (negative values) to represent the complementary strand.
-    - Colors are assigned (blue for A/G, orange for C/T) with custom mapping.
-    - Logomaker is used for logo plotting, and fonts are set to 'Arial Rounded MT Bold'.
-    - Mirror-flip effects are applied for better visualization of complementary bases.
+#     Notes
+#     -----
+#     - Positions that extend beyond chromosome boundaries are skipped with a warning printed.
+#     - Base probabilities for C/T bases are flipped (negative values) to represent the complementary strand.
+#     - Colors are assigned (blue for A/G, orange for C/T) with custom mapping.
+#     - Logomaker is used for logo plotting, and fonts are set to 'Arial Rounded MT Bold'.
+#     - Mirror-flip effects are applied for better visualization of complementary bases.
 
-    Dependencies
-    ------------
-    - Biopython (for SeqIO, SeqFeature, FeatureLocation)
-    - numpy
-    - pandas
-    - logomaker
-    - matplotlib
+#     Dependencies
+#     ------------
+#     - Biopython (for SeqIO, SeqFeature, FeatureLocation)
+#     - numpy
+#     - pandas
+#     - logomaker
+#     - matplotlib
 
-    """
+#     """
 
     
-    ## Create an empty dict to store all chromosome of the fasta file
+#     ## Create an empty dict to store all chromosome of the fasta file
+#     fasta_file = {}
+#     for seq_record in SeqIO.parse(fasta_file_dir, "fasta"):
+#         if fasta_type == 'roman':
+#             fasta_file[seq_record.id] = seq_record.seq
+#         elif fasta_type == 'number':
+#             if seq_record.id != 'chrM':
+#                 fasta_file[from_roman(seq_record.id.split('chr')[1])] = seq_record.seq
+#             elif seq_record.id == 'chrM':
+#                 fasta_file[seq_record.id.split('chr')[1]] = seq_record.seq
+        
+#     ## Adjust for shift, so that we can center the plot around a certain base pair
+#     TF_start_pos = TF_start_pos_original.copy()
+#     TF_start_pos['pos'] = TF_start_pos['pos'] + shift
+        
+#     ## Create an empty matrix to store extracted sequences
+#     seq_mat = np.zeros([TF_start_pos.shape[0],seq_width+1],dtype='str')
+    
+#     ## Iterate through all position values and extract sequences around that position
+#     for i in TF_start_pos.reset_index(drop=True).itertuples():
+#         start_wind =  i.pos-int(seq_width/2)-1
+#         end_wind = i.pos+int(seq_width/2)
+#         # Check if the window to be created by SeqFeature will be negative or larger than chromosome size
+#         if start_wind <= 0 or end_wind > len(fasta_file[i.chr])-1:
+#             print("chromosome is {}, position is {} and range is from {} to {}".format(i.chr,i.pos,start_wind,end_wind))
+#             continue
+#         else:
+#             seq = SeqFeature(FeatureLocation(i.pos-int(seq_width/2)-1, i.pos+int(seq_width/2)), type="gene", strand=1).extract(fasta_file[i.chr])
+#             #print(seq)
+#             seq_mat[i.Index,:] = np.array(seq)
+        
+        
+#     # Turn the extracted sequences into a DataFrame
+#     seq_df = pd.DataFrame(seq_mat)
+#     # Fill in missing values as a count of 0
+#     seq_df_base_count = seq_df.apply(lambda x: x.value_counts().reindex(['A','C','G','T'],fill_value=0))
+#     # Calculate the probability of each base at each bp position
+#     seq_df_base_prob = seq_df_base_count.apply(lambda x: x/seq_df.shape[0])
+    
+#     # Modify the probability to plot the bases that we want
+#     # Multiply by -1 to flip the C and T probabilities to the opposite strrand
+#     seq_df_base_prob_AG_top_CT_bot = seq_df_base_prob.copy()
+#     if bases == 'AG':
+#         seq_df_base_prob_AG_top_CT_bot.loc["C"] = seq_df_base_prob_AG_top_CT_bot.loc["C"]*-1
+#         seq_df_base_prob_AG_top_CT_bot.loc["T"] = seq_df_base_prob_AG_top_CT_bot.loc["T"]*-1
+#     # Assign probability values to 0 if we don't want those bases plotted
+#     elif bases == 'A':
+#         seq_df_base_prob_AG_top_CT_bot.loc["G"] = 0
+#         seq_df_base_prob_AG_top_CT_bot.loc["C"] = 0
+#         seq_df_base_prob_AG_top_CT_bot.loc["T"] = seq_df_base_prob_AG_top_CT_bot.loc["T"]*-1
+#     elif bases == 'G':
+#         seq_df_base_prob_AG_top_CT_bot.loc["A"] = 0
+#         seq_df_base_prob_AG_top_CT_bot.loc["T"] = 0
+#         seq_df_base_prob_AG_top_CT_bot.loc["C"] = seq_df_base_prob_AG_top_CT_bot.loc["C"]*-1
+
+
+#     ## Plot the probability plot
+#     # create color scheme
+#     color_scheme = {
+#         'A' : 'blue',
+#         'C' : 'orange',
+#         'G' : 'blue',
+#         'T' : 'orange'
+#     }
+
+    
+#     # create Logo object
+#     prob_logo = logomaker.Logo(seq_df_base_prob_AG_top_CT_bot.T,
+#                                ax=ax1,
+#                               shade_below=0,
+#                               fade_below=0,
+#                               color_scheme = color_scheme,
+#                               font_name='Arial Rounded MT Bold')
+
+
+#     # style using Logo methods
+#     prob_logo.style_spines(visible=False)
+#     prob_logo.style_spines(spines=['left', 'bottom'], visible=True)
+#     prob_logo.style_xticks(rotation=90, fmt='%d', anchor=0)
+
+#     # style using Axes methods
+#     prob_logo.ax.set_ylabel("Probability", labelpad=10)
+#     prob_logo.ax.yaxis.set_tick_params(pad=5)
+#     prob_logo.ax.set_yticks(np.linspace(-1,1,5))
+#     prob_logo.ax.set_yticklabels('%.1f'%x for x in abs(np.linspace(-1,1,5)))
+#     prob_logo.ax.xaxis.set_ticks_position('none')
+#     prob_logo.ax.xaxis.set_tick_params(pad=-1)
+#     prob_logo.ax.set_xticks(range(0,seq_width+1,5))
+#     prob_logo.ax.set_xticklabels('%d'%x for x in range(-1*int(seq_width/2),int(seq_width/2)+1,5))
+#     prob_logo.style_spines(spines=['left', 'bottom'], visible=True)
+    
+#     for i in range(len(prob_logo.glyph_df['T'])):
+#         prob_logo.glyph_df['T'][i].c = 'A'
+#         prob_logo.glyph_df['C'][i].c = 'G'
+
+    
+#     prob_logo.style_glyphs_below(flip=True,mirror=True)
+
+    
+#     ## Further process the probability dataframe to get the information(bit) dataframe
+#     max_information = 4*-0.25*np.log2(0.25)
+#     max_info_per_base = max_information - (seq_df_base_prob.apply(lambda x: -x*np.log2(x))).sum(axis=0)
+    
+#     seq_df_base_prob_w_max_info = pd.concat([seq_df_base_prob,pd.DataFrame(max_info_per_base).T],axis=0)
+    
+#     seq_df_base_information = seq_df_base_prob_w_max_info.apply(lambda x: x*x.iloc[4]).iloc[:4,:]
+    
+#     seq_df_base_information_AG_top_CT_bot = seq_df_base_information.copy()
+#     # Modify the probability to plot the bases that we want
+#     # Multiply by -1 to flip the C and T probabilities to the opposite strrand
+#     if bases == 'AG':
+#         seq_df_base_information_AG_top_CT_bot.loc["C"] = seq_df_base_information_AG_top_CT_bot.loc["C"]*-1
+#         seq_df_base_information_AG_top_CT_bot.loc["T"] = seq_df_base_information_AG_top_CT_bot.loc["T"]*-1
+#     # Assign probability values to 0 if we don't want those bases plotted
+#     elif bases == 'A':
+#         seq_df_base_information_AG_top_CT_bot.loc["G"] = 0
+#         seq_df_base_information_AG_top_CT_bot.loc["C"] = 0
+#         seq_df_base_information_AG_top_CT_bot.loc["T"] = seq_df_base_information_AG_top_CT_bot.loc["T"]*-1
+#     elif bases == 'G':
+#         seq_df_base_information_AG_top_CT_bot.loc["A"] = 0
+#         seq_df_base_information_AG_top_CT_bot.loc["T"] = 0
+#         seq_df_base_information_AG_top_CT_bot.loc["C"] = seq_df_base_information_AG_top_CT_bot.loc["C"]*-1
+    
+    
+#     ## Plot the information(bit) dataframe
+#     # create Logo object
+#     bit_logo = logomaker.Logo(seq_df_base_information_AG_top_CT_bot.T,
+#                               ax=ax2,
+#                               shade_below=0,
+#                               fade_below=0,
+#                               color_scheme = color_scheme,
+#                               font_name='Arial Rounded MT Bold')
+
+
+#     # style using Logo methods
+#     bit_logo.style_spines(visible=False)
+#     bit_logo.style_spines(spines=['left', 'bottom'], visible=True)
+#     bit_logo.style_xticks(rotation=90, fmt='%d', anchor=0)
+
+#     # style using Axes methods
+#     bit_logo.ax.set_ylabel("Bit", labelpad=10)
+#     bit_logo.ax.yaxis.set_tick_params(pad=5)
+#     bit_logo.ax.set_yticks(np.linspace(-2,2,5))
+#     bit_logo.ax.set_yticklabels('%d'%x for x in abs(np.linspace(-2,2,5)))
+#     bit_logo.ax.xaxis.set_ticks_position('none')
+#     bit_logo.ax.xaxis.set_tick_params(pad=-1)
+#     bit_logo.ax.set_xticks(range(0,seq_width+1,5))
+#     bit_logo.ax.set_xticklabels('%d'%x for x in range(-1*int(seq_width/2),int(seq_width/2)+1,5))
+    
+#     for i in range(len(bit_logo.glyph_df['T'])):
+#         bit_logo.glyph_df['T'][i].c = 'A'
+#         bit_logo.glyph_df['C'][i].c = 'G'
+
+    
+#     bit_logo.style_glyphs_below(flip=True,mirror=True)
+
+
+#     #return fig,ax
+#     return seq_df,seq_df_base_prob,prob_logo,bit_logo
+
+
+def plot_motif_logo(
+    fasta_file_dir,
+    TF_start_pos_original,
+    seq_width,
+    shift,
+    ax1=None,
+    ax2=None,
+    fasta_type='number',
+    bases='AG',
+    font_scale=1.0
+):
+    """
+    Plot motif probability/information logo on provided axes.
+    font_scale: scales axis/tick label font size (default=1.0).
+    Now accounts for strand field: negative strand windows are reverse complemented.
+    TF_start_pos_original: DataFrame with 'Chromosome', 'pos' 1 indexed, and optionally 'Strand' columns.
+    """
+    # Set base font sizes
+    base_fontsize = 11 * font_scale
+    label_size = int(base_fontsize * 1.2)
+    tick_size = int(base_fontsize * 0.95)
     fasta_file = {}
     for seq_record in SeqIO.parse(fasta_file_dir, "fasta"):
         if fasta_type == 'roman':
             fasta_file[seq_record.id] = seq_record.seq
         elif fasta_type == 'number':
             if seq_record.id != 'chrM':
+                # you'll need to define from_roman if using this:
                 fasta_file[from_roman(seq_record.id.split('chr')[1])] = seq_record.seq
             elif seq_record.id == 'chrM':
                 fasta_file[seq_record.id.split('chr')[1]] = seq_record.seq
-        
-    ## Adjust for shift, so that we can center the plot around a certain base pair
     TF_start_pos = TF_start_pos_original.copy()
     TF_start_pos['pos'] = TF_start_pos['pos'] + shift
-        
-    ## Create an empty matrix to store extracted sequences
-    seq_mat = np.zeros([TF_start_pos.shape[0],seq_width+1],dtype='str')
-    
-    ## Iterate through all position values and extract sequences around that position
+    seq_mat = np.zeros([TF_start_pos.shape[0], seq_width + 1], dtype='str')
     for i in TF_start_pos.reset_index(drop=True).itertuples():
-        start_wind =  i.pos-int(seq_width/2)-1
-        end_wind = i.pos+int(seq_width/2)
-        # Check if the window to be created by SeqFeature will be negative or larger than chromosome size
-        if start_wind <= 0 or end_wind > len(fasta_file[i.chr])-1:
-            print("chromosome is {}, position is {} and range is from {} to {}".format(i.chr,i.pos,start_wind,end_wind))
+        start_wind = i.pos - int(seq_width / 2) - 1
+        end_wind = i.pos + int(seq_width / 2)
+        if start_wind <= 0 or end_wind > len(fasta_file[i.Chromosome]) - 1:
+            print("chromosome is {}, position is {} and range is from {} to {}".format(i.Chromosome, i.pos, start_wind, end_wind))
             continue
         else:
-            seq = SeqFeature(FeatureLocation(i.pos-int(seq_width/2)-1, i.pos+int(seq_width/2)), type="gene", strand=1).extract(fasta_file[i.chr])
-            #print(seq)
-            seq_mat[i.Index,:] = np.array(seq)
-        
-        
-    # Turn the extracted sequences into a DataFrame
+            seq = fasta_file[i.Chromosome][start_wind:end_wind]
+            # Key modification: handle strand!
+            strand_val = getattr(i, 'Strand', '+')  # default '+'
+            if str(strand_val) in ['-', '-1', -1]:
+                seq = seq.reverse_complement()
+            seq_mat[i.Index, :] = np.array(seq)
     seq_df = pd.DataFrame(seq_mat)
-    # Fill in missing values as a count of 0
-    seq_df_base_count = seq_df.apply(lambda x: x.value_counts().reindex(['A','C','G','T'],fill_value=0))
-    # Calculate the probability of each base at each bp position
+    seq_df_base_count = seq_df.apply(lambda x: x.value_counts().reindex(['A','C','G','T'], fill_value=0))
     seq_df_base_prob = seq_df_base_count.apply(lambda x: x/seq_df.shape[0])
-    
-    # Modify the probability to plot the bases that we want
-    # Multiply by -1 to flip the C and T probabilities to the opposite strrand
     seq_df_base_prob_AG_top_CT_bot = seq_df_base_prob.copy()
     if bases == 'AG':
-        seq_df_base_prob_AG_top_CT_bot.loc["C"] = seq_df_base_prob_AG_top_CT_bot.loc["C"]*-1
-        seq_df_base_prob_AG_top_CT_bot.loc["T"] = seq_df_base_prob_AG_top_CT_bot.loc["T"]*-1
-    # Assign probability values to 0 if we don't want those bases plotted
+        seq_df_base_prob_AG_top_CT_bot.loc["C"] *= -1
+        seq_df_base_prob_AG_top_CT_bot.loc["T"] *= -1
+        color_scheme = {'A': 'blue', 'C': 'orange', 'G': 'blue', 'T': 'orange'}
     elif bases == 'A':
         seq_df_base_prob_AG_top_CT_bot.loc["G"] = 0
         seq_df_base_prob_AG_top_CT_bot.loc["C"] = 0
-        seq_df_base_prob_AG_top_CT_bot.loc["T"] = seq_df_base_prob_AG_top_CT_bot.loc["T"]*-1
+        seq_df_base_prob_AG_top_CT_bot.loc["T"] *= -1
+        color_scheme = {'A': 'blue', 'C': 'orange', 'G': 'blue', 'T': 'orange'}
     elif bases == 'G':
         seq_df_base_prob_AG_top_CT_bot.loc["A"] = 0
         seq_df_base_prob_AG_top_CT_bot.loc["T"] = 0
-        seq_df_base_prob_AG_top_CT_bot.loc["C"] = seq_df_base_prob_AG_top_CT_bot.loc["C"]*-1
-
-
-    ## Plot the probability plot
-    # create color scheme
-    color_scheme = {
-        'A' : 'blue',
-        'C' : 'orange',
-        'G' : 'blue',
-        'T' : 'orange'
-    }
-
+        seq_df_base_prob_AG_top_CT_bot.loc["C"] *= -1
+        color_scheme = {'A': 'blue', 'C': 'orange', 'G': 'blue', 'T': 'orange'}
+    elif bases == 'ACGT':
+        color_scheme = {'A': 'blue', 'C': 'green', 'G': 'orange', 'T': 'red'}
     
-    # create Logo object
-    prob_logo = logomaker.Logo(seq_df_base_prob_AG_top_CT_bot.T,
-                               ax=ax1,
-                              shade_below=0,
-                              fade_below=0,
-                              color_scheme = color_scheme,
-                              font_name='Arial Rounded MT Bold')
+    
+    prob_logo = None
+    if ax1 is not None:
+        prob_logo = logomaker.Logo(
+            seq_df_base_prob_AG_top_CT_bot.T,
+            ax=ax1,
+            shade_below=0,
+            fade_below=0,
+            color_scheme=color_scheme,
+            font_name='Arial Rounded MT Bold'
+        )
+        prob_logo.style_spines(visible=False)
+        prob_logo.style_spines(spines=['left', 'bottom'], visible=True)
+        prob_logo.style_xticks(rotation=0, fmt='%d', anchor=0)
+        prob_logo.ax.set_ylabel("Probability", fontsize=label_size)
+        prob_logo.ax.yaxis.set_tick_params(pad=5, labelsize=tick_size)
+        prob_logo.ax.xaxis.set_tick_params(pad=-1, labelsize=tick_size)
+        prob_logo.ax.set_yticks(np.linspace(-1, 1, 5))
+        prob_logo.ax.set_yticklabels(['%.1f' % x for x in abs(np.linspace(-1, 1, 5))], fontsize=tick_size)
+
+        ## Set x ticks
+        num_desired_ticks = 9
+        tick_indices = np.linspace(0, seq_width, num_desired_ticks, dtype=int)
+        tick_labels = np.linspace(-int(seq_width/2), int(seq_width/2), num_desired_ticks, dtype=int)
+        prob_logo.ax.set_xticks(tick_indices)
+        prob_logo.ax.set_xticklabels([f'{x}' for x in tick_labels], fontsize=tick_size)
 
 
-    # style using Logo methods
-    prob_logo.style_spines(visible=False)
-    prob_logo.style_spines(spines=['left', 'bottom'], visible=True)
-    prob_logo.style_xticks(rotation=90, fmt='%d', anchor=0)
+        for i in range(len(prob_logo.glyph_df['T'])):
+            prob_logo.glyph_df['T'][i].c = 'A'
+            prob_logo.glyph_df['C'][i].c = 'G'
+        prob_logo.style_glyphs_below(flip=True, mirror=True)
 
-    # style using Axes methods
-    prob_logo.ax.set_ylabel("Probability", labelpad=10)
-    prob_logo.ax.yaxis.set_tick_params(pad=5)
-    prob_logo.ax.set_yticks(np.linspace(-1,1,5))
-    prob_logo.ax.set_yticklabels('%.1f'%x for x in abs(np.linspace(-1,1,5)))
-    prob_logo.ax.xaxis.set_ticks_position('none')
-    prob_logo.ax.xaxis.set_tick_params(pad=-1)
-    prob_logo.ax.set_xticks(range(0,seq_width+1,5))
-    prob_logo.ax.set_xticklabels('%d'%x for x in range(-1*int(seq_width/2),int(seq_width/2)+1,5))
-    prob_logo.style_spines(spines=['left', 'bottom'], visible=True)
-    
-    for i in range(len(prob_logo.glyph_df['T'])):
-        prob_logo.glyph_df['T'][i].c = 'A'
-        prob_logo.glyph_df['C'][i].c = 'G'
-
-    
-    prob_logo.style_glyphs_below(flip=True,mirror=True)
-
-    
-    ## Further process the probability dataframe to get the information(bit) dataframe
-    max_information = 4*-0.25*np.log2(0.25)
-    max_info_per_base = max_information - (seq_df_base_prob.apply(lambda x: -x*np.log2(x))).sum(axis=0)
-    
-    seq_df_base_prob_w_max_info = pd.concat([seq_df_base_prob,pd.DataFrame(max_info_per_base).T],axis=0)
-    
+    max_information = 4 - 0.25 * np.log2(0.25)
+    max_info_per_base = max_information - (seq_df_base_prob.apply(lambda x: -x*np.log2(x+1e-9))).sum(axis=0)
+    seq_df_base_prob_w_max_info = pd.concat([seq_df_base_prob, pd.DataFrame(max_info_per_base).T], axis=0)
     seq_df_base_information = seq_df_base_prob_w_max_info.apply(lambda x: x*x.iloc[4]).iloc[:4,:]
-    
     seq_df_base_information_AG_top_CT_bot = seq_df_base_information.copy()
-    # Modify the probability to plot the bases that we want
-    # Multiply by -1 to flip the C and T probabilities to the opposite strrand
     if bases == 'AG':
-        seq_df_base_information_AG_top_CT_bot.loc["C"] = seq_df_base_information_AG_top_CT_bot.loc["C"]*-1
-        seq_df_base_information_AG_top_CT_bot.loc["T"] = seq_df_base_information_AG_top_CT_bot.loc["T"]*-1
-    # Assign probability values to 0 if we don't want those bases plotted
+        seq_df_base_information_AG_top_CT_bot.loc["C"] *= -1
+        seq_df_base_information_AG_top_CT_bot.loc["T"] *= -1
     elif bases == 'A':
         seq_df_base_information_AG_top_CT_bot.loc["G"] = 0
         seq_df_base_information_AG_top_CT_bot.loc["C"] = 0
-        seq_df_base_information_AG_top_CT_bot.loc["T"] = seq_df_base_information_AG_top_CT_bot.loc["T"]*-1
+        seq_df_base_information_AG_top_CT_bot.loc["T"] *= -1
     elif bases == 'G':
         seq_df_base_information_AG_top_CT_bot.loc["A"] = 0
         seq_df_base_information_AG_top_CT_bot.loc["T"] = 0
-        seq_df_base_information_AG_top_CT_bot.loc["C"] = seq_df_base_information_AG_top_CT_bot.loc["C"]*-1
-    
-    
-    ## Plot the information(bit) dataframe
-    # create Logo object
-    bit_logo = logomaker.Logo(seq_df_base_information_AG_top_CT_bot.T,
-                              ax=ax2,
-                              shade_below=0,
-                              fade_below=0,
-                              color_scheme = color_scheme,
-                              font_name='Arial Rounded MT Bold')
-
-
-    # style using Logo methods
-    bit_logo.style_spines(visible=False)
-    bit_logo.style_spines(spines=['left', 'bottom'], visible=True)
-    bit_logo.style_xticks(rotation=90, fmt='%d', anchor=0)
-
-    # style using Axes methods
-    bit_logo.ax.set_ylabel("Bit", labelpad=10)
-    bit_logo.ax.yaxis.set_tick_params(pad=5)
-    bit_logo.ax.set_yticks(np.linspace(-2,2,5))
-    bit_logo.ax.set_yticklabels('%d'%x for x in abs(np.linspace(-2,2,5)))
-    bit_logo.ax.xaxis.set_ticks_position('none')
-    bit_logo.ax.xaxis.set_tick_params(pad=-1)
-    bit_logo.ax.set_xticks(range(0,seq_width+1,5))
-    bit_logo.ax.set_xticklabels('%d'%x for x in range(-1*int(seq_width/2),int(seq_width/2)+1,5))
-    
-    for i in range(len(bit_logo.glyph_df['T'])):
-        bit_logo.glyph_df['T'][i].c = 'A'
-        bit_logo.glyph_df['C'][i].c = 'G'
-
-    
-    bit_logo.style_glyphs_below(flip=True,mirror=True)
-
-
-    #return fig,ax
-    return seq_df,seq_df_base_prob,prob_logo,bit_logo
-
+        seq_df_base_information_AG_top_CT_bot.loc["C"] *= -1
+    bit_logo = None
+    if ax2 is not None:
+        bit_logo = logomaker.Logo(
+            seq_df_base_information_AG_top_CT_bot.T,
+            ax=ax2,
+            shade_below=0,
+            fade_below=0,
+            color_scheme=color_scheme,
+            font_name='Arial Rounded MT Bold'
+        )
+        bit_logo.style_spines(visible=False)
+        bit_logo.style_spines(spines=['left', 'bottom'], visible=True)
+        bit_logo.style_xticks(rotation=0, fmt='%d', anchor=0)
+        bit_logo.ax.set_ylabel("Bit", fontsize=label_size)
+        bit_logo.ax.yaxis.set_tick_params(pad=5, labelsize=tick_size)
+        bit_logo.ax.xaxis.set_tick_params(pad=-1, labelsize=tick_size)
+        bit_logo.ax.set_yticks(np.linspace(-2, 2, 5))
+        bit_logo.ax.set_yticklabels(['%d' % x for x in abs(np.linspace(-2, 2, 5))], fontsize=tick_size)
+        bit_logo.ax.set_xticks(tick_indices)
+        bit_logo.ax.set_xticklabels([f'{x}' for x in tick_labels], fontsize=tick_size)
+        for i in range(len(bit_logo.glyph_df['T'])):
+            bit_logo.glyph_df['T'][i].c = 'A'
+            bit_logo.glyph_df['C'][i].c = 'G'
+        bit_logo.style_glyphs_below(flip=True, mirror=True)
+    return seq_df, seq_df_base_prob, prob_logo, bit_logo

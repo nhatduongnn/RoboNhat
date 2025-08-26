@@ -87,3 +87,72 @@ def get2DValues(bamFile, chrSizesFile, fragRange, tmpDir):
 
     hdf = pandas.HDFStore(tmpDir + "midpoint_counts.h5", mode = "r")
 
+
+def getValuesFiber_seqOneFileNucleotide(modkit_df, chrm, minStart, maxEnd, nucleotide, offset = 0):
+    """
+    Extracts and counts the occurrences of a specific modified nucleotide on Watson and Crick strands 
+    within a given chromosome coordinate range from a modification kit CSV file.
+
+    Parameters:
+    -----------
+    modkit_df : df
+        loaded df to the fiberseq modkit pileup bed file.
+    chrm : str
+        Chromosome name to filter the data.
+    minStart : int
+        Minimum start position (inclusive) of the region of interest.
+    maxEnd : int
+        Maximum end position (inclusive) of the region of interest.
+    nucleotide : str
+        The nucleotide base to count (e.g., 'A', 'C', 'G', or 'T').
+    offset : int, optional, default=0
+        An optional offset to adjust position indexing (currently unused in the function).
+
+    Returns:
+    --------
+    tuple of numpy.ndarray
+        Two arrays of integers corresponding to counts of the specified modified nucleotide on:
+        - Watson strand (positive strand) within the specified coordinate range.
+        - Crick strand (negative strand) within the specified coordinate range.
+
+    Notes:
+    ------
+    - The function assumes the input CSV has specific columns where:
+        * Column 0: Chromosome
+        * Column 1: Position
+        * Column 2: End position
+        * Column 3: Modified base
+        * Column 5: Strand information ('+' or '-')
+        * Column 9: A field containing space-separated data that is further split (not fully used here)
+        * Column 11: Count of modified bases at that position
+    - Positions are zero-indexed relative to `minStart`.
+    - This function relies on pandas and numpy libraries.
+    """
+    ...
+    modified_bases_df = pd.read_csv(modkit_df, sep='\t', header=None)
+    # Split the 9th column into multiple columns
+    split_columns = modified_bases_df[9].str.split(' ', expand=True)
+    split_columns.columns = [i for i in range(9,9+split_columns.shape[1])]
+
+    count_meth_watson = np.zeros(maxEnd - minStart + 1).astype(int)
+    count_meth_crick = np.zeros(maxEnd - minStart + 1).astype(int)
+
+    relevant_rows = modified_bases_df[
+    (modified_bases_df[0] == chrm) &
+    (modified_bases_df[1] < maxEnd) &
+    (modified_bases_df[2] > minStart)
+]
+
+    for _, row in relevant_rows.iterrows():
+        modified_base = row[3].upper()
+        strand_info = row[5]
+        count = int(row[11])
+        pos = row[1] - r1['start']
+        if strand_info == '+':
+            if modified_base == nucleotide:
+                count_meth_watson[pos] += count
+        elif strand_info == '-':
+            if modified_base == nucleotide:
+                count_meth_crick[pos] += count
+
+    return np.array(count_meth_watson),np.array(count_meth_crick)

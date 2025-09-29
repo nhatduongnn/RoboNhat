@@ -23,261 +23,28 @@ from collections import defaultdict
 from Bio.Seq import reverse_complement
 
 
-# def computeMNaseTFPhisMus(tech, bamFile, modkitFile, csvFile, tmpDir, fragRange, filename, offset=0):
-#     """
-#     Compute negative binomial distribution parameters (mu and phi) for DMS-seq methylation 
-#     data at transcription factor binding sites. Processes each TF individually if it has 
-#     ≥50 binding sites, otherwise combines low-count TFs. Automatically calculates parameters 
-#     for both Watson/Crick motif orientations and signal strands.
-    
-#     Parameters:
-#     -----------
-#     tech : str
-#         Specify whether or not the input data is DMS_seq or Fiber_seq
-#     bamFile : str
-#         Path to the BAM file containing aligned sequencing reads with fragment information
-#     modkitFile : str
-#         Path to the Modkit file containing pileup information of fiberseq-reads
-#     csvFile : str  
-#         Path to tab-separated file containing TF binding sites with columns:
-#         chr, start, end, tf_name, score, strand
-#     tmpDir : str
-#         Path to temporary directory (currently unused but kept for compatibility)
-#     fragRange : tuple or list
-#         Fragment size range filter (currently unused but kept for compatibility)  
-#     filename : str
-#         Output filename prefix (currently unused but kept for compatibility)
-#     offset : int, optional
-#         Position offset adjustment (default: 0, currently unused)
-        
-#     Returns:
-#     --------
-#     dict
-#         Nested dictionary with structure:
-#         {
-#             'mu': {
-#                 'TF_name': {
-#                     'Watson Motif': {
-#                         'Watson Signal': {'A': array, 'C': array, 'G': array, 'T': array},
-#                         'Crick Signal': {'A': array, 'C': array, 'G': array, 'T': array}
-#                     },
-#                     'Crick Motif': {
-#                         'Watson Signal': {'A': array, 'C': array, 'G': array, 'T': array},
-#                         'Crick Signal': {'A': array, 'C': array, 'G': array, 'T': array}
-#                     }
-#                 }
-#             },
-#             'phi': { ... same structure as 'mu' ... }
-#         }
-        
-#         Arrays contain position-wise parameters (length = TF motif length)
-#         TFs with <50 sites are grouped under 'combined_low_count' key
-#     """
-    
-#     # Initialize R fitdistrplus
-#     fitdist = importr('fitdistrplus')
-    
-#     if tech != "Fiber_seq":
-#         # Load BAM file
-#         samfile = pysam.AlignmentFile(bamFile, "rb")
-    
-#     # Load reference genome - TODO: Make this configurable instead of hardcoded
-#     fasta_file = {}
-#     for seq_record in SeqIO.parse("/home/rapiduser/programs/RoboCOP/analysis/inputs/SacCer3.fa", "fasta"):
-#         fasta_file[seq_record.id] = seq_record.seq
-    
-#     # Load TF binding sites
-#     tfs = pd.read_csv(csvFile, sep='\t', header=None)
-#     tfs = tfs.rename(columns={0: 'chr', 1: 'start', 2: 'end', 3: 'tf_name', 4: 'score', 5: 'strand'})
-    
-#     # Filter TFs by count threshold
-#     tf_counts = tfs.groupby('tf_name')['chr'].count()
-#     ind_tfs = list(tf_counts.loc[tf_counts >= 50].index)
-    
-#     # Initialize the nested dictionary structure: mu/phi -> TF -> motif_strand -> signal_strand -> ACGT
-#     params_all = {
-#         'mu': {},
-#         'phi': {}
-#     }
-    
-#     # Process each TF individually
-#     for tf_name in ind_tfs:
-#         params_all['mu'][tf_name] = {}
-#         params_all['phi'][tf_name] = {}
-        
-#         # Process both Watson and Crick motif orientations
-#         for motif_strand in ['+', '-']:
-#             motif_name = 'Watson Motif' if motif_strand == '+' else 'Crick Motif'
-            
-#             if tech != "Fiber_seq":
-#                 tf_params = compute_individual_DMSTFPhisMus(
-#                     samfile, tfs, tf_name, motif_strand, fasta_file, fitdist, offset
-#                 )
-#             elif tech == "Fiber_seq":
-#                 # For Fiber-seq, we need to handle the pileup data differently
-#                 tf_params = compute_individual_Fiber_seq_TFPhisMus(
-#                     modkitFile, tfs, tf_name, motif_strand, fasta_file, fitdist, offset
-#                 )
-            
-#             # Structure: TF -> motif_strand -> signal_strand -> base
-#             params_all['mu'][tf_name][motif_name] = {
-#                 'Watson Signal': tf_params['mu']['watson'],
-#                 'Crick Signal': tf_params['mu']['crick']
-#             }
-#             params_all['phi'][tf_name][motif_name] = {
-#                 'Watson Signal': tf_params['phi']['watson'],
-#                 'Crick Signal': tf_params['phi']['crick']
-#             }
 
-#         plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Watson Motif']['Watson Signal'], params_all['phi'][tf_name]['Watson Motif']['Watson Signal'], strand_label="Watson", tf_name=tf_name)
-#         plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Watson Motif']['Crick Signal'], params_all['phi'][tf_name]['Watson Motif']['Crick Signal'], strand_label="Crick", tf_name=tf_name)
-#         plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Crick Motif']['Watson Signal'], params_all['phi'][tf_name]['Crick Motif']['Watson Signal'], strand_label="Watson", tf_name=tf_name)
-#         plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Crick Motif']['Crick Signal'], params_all['phi'][tf_name]['Crick Motif']['Crick Signal'], strand_label="Crick", tf_name=tf_name)
-    
-    
-#     # Handle TFs with < 50 sites as a combined group if needed
-#     tf_counts_low = tf_counts.loc[tf_counts < 50]
-#     if len(tf_counts_low) > 0:
-#         # Combine all low-count TFs into one group
-#         combined_tfs = list(tf_counts_low.index)
-#         params_all['mu']['combined_low_count'] = {}
-#         params_all['phi']['combined_low_count'] = {}
-        
-#         for motif_strand in ['+', '-']:
-#             motif_name = 'Watson Motif' if motif_strand == '+' else 'Crick Motif'
 
-#             if tech != "Fiber_seq":
-#                 combined_params = compute_combined_DMSTFPhisMus(
-#                     samfile, tfs, combined_tfs, motif_strand, fasta_file, fitdist, offset
-#                 )
-#             elif tech == "Fiber_seq":
-#                 # For Fiber-seq, we need to handle the pileup data differently
-#                 combined_params = compute_individual_Fiber_seq_TFPhisMus(
-#                     modkitFile, tfs, combined_tfs, motif_strand, fasta_file, fitdist, offset
-#                 )
-            
-            
-#             params_all['mu']['combined_low_count'][motif_name] = {
-#                 'Watson Signal': combined_params['mu']['watson'],
-#                 'Crick Signal': combined_params['mu']['crick']
-#             }
-#             params_all['phi']['combined_low_count'][motif_name] = {
-#                 'Watson Signal': combined_params['phi']['watson'],
-#                 'Crick Signal': combined_params['phi']['crick']
-#             }
-    
-#     if tech == "DMS_seq":
-#         samfile.close()
-#     return params_all
-
-# def computeMNaseTFPhisMus(tech, bamFile, modkitFile, csvFile, tmpDir, fragRange, filename, offset=0):
-#     fitdist = importr('fitdistrplus')
-#     if tech != "Fiber_seq":
-#         samfile = pysam.AlignmentFile(bamFile, "rb")
-#     fasta_file = {}
-#     for seq_record in SeqIO.parse("/home/rapiduser/programs/RoboCOP/analysis/inputs/SacCer3.fa", "fasta"):
-#         fasta_file[seq_record.id] = seq_record.seq
-#     tfs = pd.read_csv(csvFile, sep='\t', header=None)
-#     tfs = tfs.rename(columns={0: 'chr', 1: 'start', 2: 'end', 3: 'tf_name', 4: 'score', 5: 'strand'})
-#     tf_counts = tfs.groupby('tf_name')['chr'].count()
-#     ind_tfs = list(tf_counts.loc[tf_counts >= 50].index)
-
-#     params_all = {
-#         'mu': {},
-#         'phi': {}
-#     }
-
-#     for tf_name in ind_tfs:
-#         # For Fiber_seq or DMS_seq, get counts for both Watson and Crick motif strands separately
-#         if tech != "Fiber_seq":
-#             watson_counts = compute_individual_DMSTFPhisMus(
-#                 samfile, tfs, tf_name, '+', fasta_file, fitdist, offset
-#             )
-#             crick_counts = compute_individual_DMSTFPhisMus(
-#                 samfile, tfs, tf_name, '-', fasta_file, fitdist, offset
-#             )
-#         else:
-#             watson_counts = compute_individual_Fiber_seq_TFPhisMus(
-#                 modkitFile, tfs, tf_name, '+', fasta_file, fitdist, offset
-#             )
-#             crick_counts = compute_individual_Fiber_seq_TFPhisMus(
-#                 modkitFile, tfs, tf_name, '-', fasta_file, fitdist, offset
-#             )
-
-#         combined_counts = combine_motif_counts(watson_counts, crick_counts)
-
-#         if combined_counts['num_sites'] == 0:
-#             params = create_default_params_individual()
-#         else:
-#             params = fit_nb_parameters(combined_counts, combined_counts['tf_len'], combined_counts['num_sites'], fitdist)
-
-#         params_all['mu'][tf_name] = {
-#             'Watson Signal': params['mu']['watson'],
-#             'Crick Signal': params['mu']['crick']
-#         }
-#         params_all['phi'][tf_name] = {
-#             'Watson Signal': params['phi']['watson'],
-#             'Crick Signal': params['phi']['crick']
-#         }
-
-#         # Optionally, plot heatmaps here
-#         plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Watson Signal'], params_all['phi'][tf_name]['Watson Signal'], strand_label="Watson", tf_name=tf_name)
-#         plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Crick Signal'], params_all['phi'][tf_name]['Crick Signal'], strand_label="Crick", tf_name=tf_name)
-
-#     ### Handle combined low count TFs similarly with modification ###
-
-#     tf_counts_low = tf_counts.loc[tf_counts < 50]
-#     if len(tf_counts_low) > 0:
-#         combined_tfs = list(tf_counts_low.index)
-#         if tech != "Fiber_seq":
-#             watson_counts = compute_combined_DMSTFPhisMus(  # you may need to modify this function similarly to return raw counts.
-#                 samfile, tfs, combined_tfs, '+', fasta_file, fitdist, offset
-#             )
-#             crick_counts = compute_combined_DMSTFPhisMus(
-#                 samfile, tfs, combined_tfs, '-', fasta_file, fitdist, offset
-#             )
-#         else:
-#             # Use the new combined Fiber_seq function
-#             watson_counts = compute_combined_Fiber_seq_TFPhisMus(
-#                 modkitFile, tfs, combined_tfs, '+', fasta_file, fitdist, offset
-#             )
-#             crick_counts = compute_combined_Fiber_seq_TFPhisMus(
-#                 modkitFile, tfs, combined_tfs, '-', fasta_file, fitdist, offset
-#             )
-
-#         combined_counts = combine_motif_counts(watson_counts, crick_counts)
-
-#         if combined_counts['num_sites'] == 0:
-#             params = create_default_params_individual()
-#         else:
-#             params = fit_nb_parameters(combined_counts, combined_counts['tf_len'], combined_counts['num_sites'], fitdist)
-
-#         params_all['mu']['combined_low_count'] = {
-#             'Watson Signal': params['mu']['watson'],
-#             'Crick Signal': params['mu']['crick']
-#         }
-#         params_all['phi']['combined_low_count'] = {
-#             'Watson Signal': params['phi']['watson'],
-#             'Crick Signal': params['phi']['crick']
-#         }
-
-#     if tech == "DMS_seq":
-#         samfile.close()
-
-#     return params_all
-
-def computeMNaseTFPhisMus(tech, bamFile, modified_bases_df, csvFile, tmpDir, fragRange, filename, offset=0):
+def computeMNaseTFPhisMus(tech, bamFile, modkitFile, csvFile, tmpDir, fragRange, filename, offset=0):
     fitdist = importr('fitdistrplus')
     if tech != "Fiber_seq":
         samfile = pysam.AlignmentFile(bamFile, "rb")
     fasta_file = {}
     for seq_record in SeqIO.parse("/home/rapiduser/programs/RoboCOP/analysis/inputs/SacCer3.fa", "fasta"):
         fasta_file[seq_record.id] = seq_record.seq
-    tfs = pd.read_csv(csvFile, sep='\t', header=None)
-    tfs = tfs.rename(columns={0: 'chr', 1: 'start', 2: 'end', 3: 'tf_name', 4: 'score', 5: 'strand'})
+    tfs = pd.read_csv(csvFile, sep='\t')
+    tfs = tfs.rename(columns={'TF': 'tf_name'})
     tf_counts = tfs.groupby('tf_name')['chr'].count()
     ind_tfs = list(tf_counts.loc[tf_counts >= 50].index)
     params_all = {'mu': {}, 'phi': {}}
+
+    # Load Modkit file only once outside loop
+    modified_bases_df = pd.read_csv(modkitFile, sep='\t', header=None)
+    # Split the 9th column into multiple columns (if following previous code pattern)
+    split_columns = modified_bases_df[9].str.split(' ', expand=True)
+    split_columns.columns = [i for i in range(9,9+split_columns.shape[1])]
+    modified_bases_df = pd.concat([modified_bases_df.drop(columns=[9]), split_columns], axis=1)
+
     for tf_name in ind_tfs:
         if tech != "Fiber_seq":
             watson_counts = compute_individual_DMSTFPhisMus(
@@ -294,6 +61,9 @@ def computeMNaseTFPhisMus(tech, bamFile, modified_bases_df, csvFile, tmpDir, fra
             crick_counts = compute_individual_Fiber_seq_TFPhisMus(
                 modified_bases_df, tfs, tf_name, '-', fasta_file, fitdist, offset
             )
+
+        # plot_mu_phi_heatmaps(watson_counts['watson_signal'], watson_counts['crick_signal'], strand_label="Watson", tf_name=tf_name)
+        # plot_mu_phi_heatmaps(crick_counts['watson_signal'], crick_counts['crick_signal'], strand_label="Crick", tf_name=tf_name)
         combined_counts = combine_motif_counts(watson_counts, crick_counts)
         if combined_counts['num_sites'] == 0:
             params = create_default_params_individual()
@@ -341,7 +111,19 @@ def computeMNaseTFPhisMus(tech, bamFile, modified_bases_df, csvFile, tmpDir, fra
             'Watson Signal': params['phi']['watson'],
             'Crick Signal': params['phi']['crick']
         }
-    if tech == "DMS_seq":
+    else:
+        # No low-count TFs; still populate default combined_low_count params
+        params = create_default_params_individual()
+        params_all['mu']['combined_low_count'] = {
+            'Watson Signal': params['mu']['watson'],
+            'Crick Signal': params['mu']['crick']
+        }
+        params_all['phi']['combined_low_count'] = {
+            'Watson Signal': params['phi']['watson'],
+            'Crick Signal': params['phi']['crick']
+        }
+
+    if tech != "Fiber_seq":
         samfile.close()
     return params_all
 
@@ -456,115 +238,7 @@ def compute_individual_DMSTFPhisMus(samfile, tfs_df, tf_name, motif_strand, fast
     }
 
 
-# def compute_individual_Fiber_seq_TFPhisMus(modkitFile, tfs_df, tf_name, motif_strand, fasta_file, fitdist, offset=0):
-#     """
-#     Compute negative binomial parameters for a single transcription factor on one motif strand.
-#     Extracts methylation fragment counts at each nucleotide position, distinguishes Watson/Crick
-#     signal strands, and fits negative binomial distributions across all binding sites.
-    
-#     Parameters:
-#     -----------
-#     modkitFile : modkit pileup file
-#         dataframe of modkit file
-#     tfs_df : pd.DataFrame
-#         DataFrame containing TF binding site information with columns:
-#         chr, start, end, tf_name, score, strand
-#     tf_name : str
-#         Name of the specific transcription factor to process
-#     motif_strand : str
-#         Motif orientation: '+' for Watson Motif, '-' for Crick Motif
-#     fasta_file : dict
-#         Dictionary mapping chromosome names to Bio.SeqRecord.seq objects
-#         containing reference genome sequences
-#     fitdist : rpy2 R package
-#         R fitdistrplus package imported via rpy2 for negative binomial fitting
-#     offset : int, optional
-#         Position offset adjustment (default: 0, currently unused)
-        
-#     Returns:
-#     --------
-#     dict
-#         Dictionary with structure:
-#         {
-#             'mu': {
-#                 'watson': {'A': array, 'C': array, 'G': array, 'T': array},
-#                 'crick': {'A': array, 'C': array, 'G': array, 'T': array}
-#             },
-#             'phi': {
-#                 'watson': {'A': array, 'C': array, 'G': array, 'T': array},
-#                 'crick': {'A': array, 'C': array, 'G': array, 'T': array}
-#             }
-#         }
-        
-#         Arrays contain fitted parameters for each position in the TF motif
-#     """
-#     # Initialize count arrays for each signal strand and base
-#     base_names = ['A', 'C', 'G', 'T']
-#     signal_strand_names = ['watson', 'crick']
-    
-#     tf_counts = {strand: {base: [] for base in base_names} for strand in signal_strand_names}
-    
-#     # Get all sites for this TF on the specified motif strand
-#     one_tf_df = tfs_df.loc[(tfs_df['tf_name'] == tf_name) & (tfs_df['strand'] == motif_strand)]
-    
-#     if len(one_tf_df) == 0:
-#         return create_default_params_individual()
-    
-#     # Get TF length (assuming consistent length for this TF)
-#     tf_len = one_tf_df.iloc[0]['end'] - one_tf_df.iloc[0]['start']
 
-#     modified_bases_df = pd.read_csv(modkitFile, sep='\t', header=None)
-#     # Split the 9th column into multiple columns
-#     split_columns = modified_bases_df[9].str.split(' ', expand=True)
-#     split_columns.columns = [i for i in range(9,9+split_columns.shape[1])]
-
-#     # Drop the original 9th column and concatenate the new columns back to the original DataFrame
-#     modified_bases_df = pd.concat([modified_bases_df.drop(columns=[9]), split_columns], axis=1)
-    
-#     for i1, r1 in one_tf_df.iterrows():
-#         chrm = r1['chr']
-        
-#         # Initialize counts for this TF site
-#         site_counts = {
-#             strand: {base: [1] * tf_len for base in base_names} 
-#             for strand in signal_strand_names
-#         }
-
-
-#         # Filter for relevant rows based on chromosome and position
-#         relevant_rows = modified_bases_df[
-#             (modified_bases_df[0] == chrm) &
-#             (modified_bases_df[1] < r1['end']) &
-#             (modified_bases_df[2] > r1['start'])
-#         ]
-
-#         for _, row in relevant_rows.iterrows():
-#             modified_base = row[3].upper()
-#             strand_info = row[5]
-#             count = int(row[11])
-#             ## row[1] is bed file start coordinate which is 0 indexed. 
-#             ##  r1['start'] is also from a bed file and is also 0 indexed
-#             pos = row[1] - r1['start']
-
-#             if strand_info == '+':
-#                 if modified_base in base_names:
-#                     site_counts['watson'][modified_base][pos] += count
-#             elif strand_info == '-':
-#                 if modified_base in base_names:
-#                     site_counts['crick'][modified_base][pos] += count
-        
-#         # Accumulate counts across all sites for this TF
-#         for strand in signal_strand_names:
-#             for base in base_names:
-#                 tf_counts[strand][base].extend(site_counts[strand][base])
-    
-#     # Fit negative binomial parameters
-#     return {
-#         'watson_signal': tf_counts['watson'],
-#         'crick_signal': tf_counts['crick'],
-#         'tf_len': tf_len,
-#         'num_sites': len(one_tf_df)
-#     }
 
 def compute_individual_Fiber_seq_TFPhisMus(modified_bases_df, tfs_df, tf_name, motif_strand, fasta_file, fitdist, offset=0):
     """
@@ -674,214 +348,111 @@ def compute_combined_Fiber_seq_TFPhisMus(modified_bases_df, tfs_df, tf_names_lis
     }
 
 
-# def compute_combined_DMSTFPhisMus(samfile, tfs_df, tf_names_list, motif_strand, fasta_file, fitdist, offset=0):
+# def compute_combined_Fiber_seq_TFPhisMus(modkitFile, tfs_df, tf_names_list, motif_strand, fasta_file, fitdist, offset=0):
 #     """
-#     Compute combined counts for multiple low-count TFs (DMS_seq/Fiber_seq-like BAM input),
-#     aggregating methylation fragment counts at each position and for each base on both 
-#     signal strands, without fitting distributions inside this function.
+#     Compute combined negative binomial parameters for multiple low-count transcription factors in Fiber_seq data.
+#     Combines counts from multiple TFs, standardizes to the most common TF motif length, and aggregates methylation counts
+#     for each base (A,C,G,T) and signal strand (Watson/Crick) across all sites.
 
 #     Parameters:
 #     -----------
-#     samfile : pysam.AlignmentFile
-#         Opened BAM file object for reading sequencing data
+#     modkitFile : str
+#         Path to the Modkit pileup file with fiberseq methylation data
 #     tfs_df : pd.DataFrame
-#         DataFrame containing TF binding sites (columns: chr, start, end, tf_name, score, strand)
+#         DataFrame of TF binding sites with columns chr, start, end, tf_name, score, strand
 #     tf_names_list : list of str
-#         List of TF names to combine (usually low-count TFs)
+#         List of TF names to combine
 #     motif_strand : str
 #         '+' for Watson motif strand, '-' for Crick motif strand
 #     fasta_file : dict
 #         Dictionary mapping chromosome names to Bio.SeqRecord.seq objects with reference genome
 #     fitdist : rpy2 R package import
-#         Imported fitdistrplus R package via rpy2 (not used here, but kept for consistency)
+#         Imported fitdistrplus R package via rpy2 (not used directly here, but for consistency)
 #     offset : int, optional
-#         Position offset adjustment (default 0)
+#         Position offset adjustment (default=0, currently unused)
 
 #     Returns:
 #     --------
 #     dict
-#         Dictionary with structure:
-#         {
-#           'watson_signal': {base: list of counts},
-#           'crick_signal': {base: list of counts},
-#           'tf_len': int motif length (mode length across combined TFs),
-#           'num_sites': int number of sites used
-#         }
+#         Dictionary with keys:
+#           - 'watson_signal': dict of base -> list of counts aggregated over all sites
+#           - 'crick_signal': dict of base -> list of counts aggregated over all sites
+#           - 'tf_len': int motif length (most common length across TFs)
+#           - 'num_sites': int total number of binding sites combined
 #     """
 #     base_names = ['A', 'C', 'G', 'T']
 #     signal_strand_names = ['watson', 'crick']
 
-#     # Initialize aggregated counts as empty lists
+#     # Initialize empty aggregated counts lists (flattened across all sites)
 #     tf_counts = {strand: {base: [] for base in base_names} for strand in signal_strand_names}
 
+#     # Filter TF sites for the combined TFs and given motif strand
 #     combined_df = tfs_df.loc[(tfs_df['tf_name'].isin(tf_names_list)) & (tfs_df['strand'] == motif_strand)]
 
 #     if len(combined_df) == 0:
+#         from copy import deepcopy
+#         # Return default params with default TF motif length 13 if no sites found
 #         return create_default_params_individual()
 
-#     # Determine most common TF length (mode)
+#     # Determine the most common motif length among all TFs in combined list
 #     tf_lengths = combined_df['end'] - combined_df['start']
 #     tf_len = int(tf_lengths.mode().iloc[0])  # Most common length
 
-#     # Iterate over each binding site, skip if length not equal to mode tf_len
+#     # Load Modkit file only once outside loop
+#     modified_bases_df = pd.read_csv(modkitFile, sep='\t', header=None)
+#     # Split the 9th column into multiple columns (if following previous code pattern)
+#     split_columns = modified_bases_df[9].str.split(' ', expand=True)
+#     split_columns.columns = [i for i in range(9,9+split_columns.shape[1])]
+#     modified_bases_df = pd.concat([modified_bases_df.drop(columns=[9]), split_columns], axis=1)
+
+#     # Iterate over each binding site (TF site)
 #     for _, r1 in combined_df.iterrows():
-#         site_len = r1['end'] - r1['start']
-#         if site_len != tf_len:
+#         # Skip sites with different length than most common TF length
+#         if (r1['end'] - r1['start']) != tf_len:
 #             continue
 
 #         chrm = r1['chr']
+#         start = r1['start']
+#         end = r1['end']
 
-#         # Initialize site counts with pseudocount 1 to avoid zeros
-#         site_counts = {
-#             strand: {base: [1]*tf_len for base in base_names} 
-#             for strand in signal_strand_names
-#         }
+#         # Initialize site count arrays with pseudocount=1 to avoid zeros
+#         site_counts = {strand: {base: [1]*tf_len for base in base_names} for strand in signal_strand_names}
 
-#         # Fetch reads overlapping this TF site
-#         region = samfile.fetch(chrm, r1['start'] - 1, r1['end'] + 1)
+#         # Filter relevant modified base rows overlapping with this TF site
+#         relevant_rows = modified_bases_df[
+#             (modified_bases_df[0] == chrm) &
+#             (modified_bases_df[1] < end) &
+#             (modified_bases_df[2] > start)
+#         ]
 
-#         for read in region:
-#             if read.template_length == 0:
-#                 continue
+#         for _, row in relevant_rows.iterrows():
+#             modified_base = str(row[3]).upper()
+#             strand_info = row[5]
+#             count = int(row[11])
+#             pos = int(row[1]) - start  # position relative to TF start (0-based)
 
-#             if read.template_length > 0:  # Watson signal strand
-#                 frag_start = read.reference_start  # 0-based start of alignment
-#                 if r1['start'] <= frag_start + 1 <= r1['end']:
-#                     nucleotide = SeqFeature(FeatureLocation(frag_start, frag_start + 1)).extract(fasta_file[chrm])
-#                     pos = (frag_start + 1) - r1['start']  # position relative to TF start
-#                     if str(nucleotide) in base_names:
-#                         site_counts['watson'][str(nucleotide)][pos] += 1
+#             if pos < 0 or pos >= tf_len:
+#                 continue  # just a safety check (This is potentially here because combined TFs have different lengths)
 
-#             elif read.template_length < 0:  # Crick signal strand
-#                 frag_end = read.reference_end  # 0-based exclusive end of alignment
-#                 # Reference end is exclusive, so frag_end actually one past last ref covered base
-#                 # Adjusting to 1-based coordinate internally consistent with TF site coordinates
-#                 adjusted_frag_end = frag_end
-#                 if r1['start'] <= adjusted_frag_end <= r1['end']:
-#                     nucleotide = SeqFeature(FeatureLocation(adjusted_frag_end -1, adjusted_frag_end)).extract(fasta_file[chrm])
-#                     pos = adjusted_frag_end - r1['start']  # position relative to TF start
-#                     complement_map = {'A':'T', 'C':'G', 'G':'C', 'T':'A'}
-#                     if str(nucleotide) in complement_map:
-#                         site_counts['crick'][complement_map[str(nucleotide)]][pos] += 1
+#             if strand_info == '+':
+#                 if modified_base in base_names:
+#                     site_counts['watson'][modified_base][pos] += count
+#             elif strand_info == '-':
+#                 if modified_base in base_names:
+#                     site_counts['crick'][modified_base][pos] += count
 
-#         # Append site counts flattened by base and strand into aggregate lists
+#         # Append these site counts flattened by base and strand into aggregate lists
 #         for strand in signal_strand_names:
 #             for base in base_names:
 #                 tf_counts[strand][base].extend(site_counts[strand][base])
 
+#     # Return with total number of sites and motif length
 #     return {
 #         'watson_signal': tf_counts['watson'],
 #         'crick_signal': tf_counts['crick'],
 #         'tf_len': tf_len,
-#         'num_sites': len(combined_df)
+#         'num_sites': combined_df.shape[0]
 #     }
-
-
-def compute_combined_Fiber_seq_TFPhisMus(modkitFile, tfs_df, tf_names_list, motif_strand, fasta_file, fitdist, offset=0):
-    """
-    Compute combined negative binomial parameters for multiple low-count transcription factors in Fiber_seq data.
-    Combines counts from multiple TFs, standardizes to the most common TF motif length, and aggregates methylation counts
-    for each base (A,C,G,T) and signal strand (Watson/Crick) across all sites.
-
-    Parameters:
-    -----------
-    modkitFile : str
-        Path to the Modkit pileup file with fiberseq methylation data
-    tfs_df : pd.DataFrame
-        DataFrame of TF binding sites with columns chr, start, end, tf_name, score, strand
-    tf_names_list : list of str
-        List of TF names to combine
-    motif_strand : str
-        '+' for Watson motif strand, '-' for Crick motif strand
-    fasta_file : dict
-        Dictionary mapping chromosome names to Bio.SeqRecord.seq objects with reference genome
-    fitdist : rpy2 R package import
-        Imported fitdistrplus R package via rpy2 (not used directly here, but for consistency)
-    offset : int, optional
-        Position offset adjustment (default=0, currently unused)
-
-    Returns:
-    --------
-    dict
-        Dictionary with keys:
-          - 'watson_signal': dict of base -> list of counts aggregated over all sites
-          - 'crick_signal': dict of base -> list of counts aggregated over all sites
-          - 'tf_len': int motif length (most common length across TFs)
-          - 'num_sites': int total number of binding sites combined
-    """
-    base_names = ['A', 'C', 'G', 'T']
-    signal_strand_names = ['watson', 'crick']
-
-    # Initialize empty aggregated counts lists (flattened across all sites)
-    tf_counts = {strand: {base: [] for base in base_names} for strand in signal_strand_names}
-
-    # Filter TF sites for the combined TFs and given motif strand
-    combined_df = tfs_df.loc[(tfs_df['tf_name'].isin(tf_names_list)) & (tfs_df['strand'] == motif_strand)]
-
-    if len(combined_df) == 0:
-        from copy import deepcopy
-        # Return default params with default TF motif length 13 if no sites found
-        return create_default_params_individual()
-
-    # Determine the most common motif length among all TFs in combined list
-    tf_lengths = combined_df['end'] - combined_df['start']
-    tf_len = int(tf_lengths.mode().iloc[0])  # Most common length
-
-    # Load Modkit file only once outside loop
-    modified_bases_df = pd.read_csv(modkitFile, sep='\t', header=None)
-    # Split the 9th column into multiple columns (if following previous code pattern)
-    split_columns = modified_bases_df[9].str.split(' ', expand=True)
-    split_columns.columns = [i for i in range(9,9+split_columns.shape[1])]
-    modified_bases_df = pd.concat([modified_bases_df.drop(columns=[9]), split_columns], axis=1)
-
-    # Iterate over each binding site (TF site)
-    for _, r1 in combined_df.iterrows():
-        # Skip sites with different length than most common TF length
-        if (r1['end'] - r1['start']) != tf_len:
-            continue
-
-        chrm = r1['chr']
-        start = r1['start']
-        end = r1['end']
-
-        # Initialize site count arrays with pseudocount=1 to avoid zeros
-        site_counts = {strand: {base: [1]*tf_len for base in base_names} for strand in signal_strand_names}
-
-        # Filter relevant modified base rows overlapping with this TF site
-        relevant_rows = modified_bases_df[
-            (modified_bases_df[0] == chrm) &
-            (modified_bases_df[1] < end) &
-            (modified_bases_df[2] > start)
-        ]
-
-        for _, row in relevant_rows.iterrows():
-            modified_base = str(row[3]).upper()
-            strand_info = row[5]
-            count = int(row[11])
-            pos = int(row[1]) - start  # position relative to TF start (0-based)
-
-            if pos < 0 or pos >= tf_len:
-                continue  # just a safety check (This is potentially here because combined TFs have different lengths)
-
-            if strand_info == '+':
-                if modified_base in base_names:
-                    site_counts['watson'][modified_base][pos] += count
-            elif strand_info == '-':
-                if modified_base in base_names:
-                    site_counts['crick'][modified_base][pos] += count
-
-        # Append these site counts flattened by base and strand into aggregate lists
-        for strand in signal_strand_names:
-            for base in base_names:
-                tf_counts[strand][base].extend(site_counts[strand][base])
-
-    # Return with total number of sites and motif length
-    return {
-        'watson_signal': tf_counts['watson'],
-        'crick_signal': tf_counts['crick'],
-        'tf_len': tf_len,
-        'num_sites': combined_df.shape[0]
-    }
 
 def combine_motif_counts(watson_counts, crick_counts):
     base_names = ['A', 'C', 'G', 'T']
@@ -1166,12 +737,12 @@ def plot_mu_phi_heatmaps(mu_dict, phi_dict, strand_label, tf_name):
     # plt.show()
 
 
-
+import pickle
 
 a = computeMNaseTFPhisMus("Fiber_seq",\
                           "/home/rapiduser/projects/DMS-seq/DM1664/DM1664_trim_3prime_18bp_remaining_name_change_sorted.bam",\
                           "/home/rapiduser/projects/Fiber_seq/03202025_barcode01_sup_model_sorted_pileup_all_chr",\
-                          "/home/rapiduser/programs/RoboCOP/analysis/inputs/MacIsaac_sacCer3_liftOver_Abf1_Reb1.bed",\
+                          "/home/rapiduser/programs/RoboCOP/analysis/inputs/rossi_peak_w_strand_conformed_to_PWM_abf1_reb1.bed",\
                             "/home/rapiduser/programs/RoboCOP/analysis/robocop_train/tmpDir",\
                             (0, 80),\
                                 None,\
@@ -1179,11 +750,474 @@ a = computeMNaseTFPhisMus("Fiber_seq",\
 
 # Okay maybe this is it
 print(a)
+abf1_reb1_params = a
 
-        # plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Watson Motif']['Watson Signal'], params_all['phi'][tf_name]['Watson Motif']['Watson Signal'], strand_label="Watson", tf_name=tf_name)
-        # plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Watson Motif']['Crick Signal'], params_all['phi'][tf_name]['Watson Motif']['Crick Signal'], strand_label="Crick", tf_name=tf_name)
-        # plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Crick Motif']['Watson Signal'], params_all['phi'][tf_name]['Crick Motif']['Watson Signal'], strand_label="Watson", tf_name=tf_name)
-        # plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Crick Motif']['Crick Signal'], params_all['phi'][tf_name]['Crick Motif']['Crick Signal'], strand_label="Crick", tf_name=tf_name)
+# To load the dictionary later, you can use:
+
+# Save the dictionary to a file
+with open('inputs/abf1_reb1_params.pkl', 'wb') as f:
+    pickle.dump(abf1_reb1_params, f)
+
+# # Load the dictionary from the file
+# with open('inputs/abf1_reb1_params.pkl', 'rb') as f:
+#     loaded_params = pickle.load(f)
+
+
+
+
+
+# def computeMNaseTFPhisMus(tech, bamFile, modkitFile, csvFile, tmpDir, fragRange, filename, offset=0):
+#     """
+#     Compute negative binomial distribution parameters (mu and phi) for DMS-seq methylation 
+#     data at transcription factor binding sites. Processes each TF individually if it has 
+#     ≥50 binding sites, otherwise combines low-count TFs. Automatically calculates parameters 
+#     for both Watson/Crick motif orientations and signal strands.
     
+#     Parameters:
+#     -----------
+#     tech : str
+#         Specify whether or not the input data is DMS_seq or Fiber_seq
+#     bamFile : str
+#         Path to the BAM file containing aligned sequencing reads with fragment information
+#     modkitFile : str
+#         Path to the Modkit file containing pileup information of fiberseq-reads
+#     csvFile : str  
+#         Path to tab-separated file containing TF binding sites with columns:
+#         chr, start, end, tf_name, score, strand
+#     tmpDir : str
+#         Path to temporary directory (currently unused but kept for compatibility)
+#     fragRange : tuple or list
+#         Fragment size range filter (currently unused but kept for compatibility)  
+#     filename : str
+#         Output filename prefix (currently unused but kept for compatibility)
+#     offset : int, optional
+#         Position offset adjustment (default: 0, currently unused)
+        
+#     Returns:
+#     --------
+#     dict
+#         Nested dictionary with structure:
+#         {
+#             'mu': {
+#                 'TF_name': {
+#                     'Watson Motif': {
+#                         'Watson Signal': {'A': array, 'C': array, 'G': array, 'T': array},
+#                         'Crick Signal': {'A': array, 'C': array, 'G': array, 'T': array}
+#                     },
+#                     'Crick Motif': {
+#                         'Watson Signal': {'A': array, 'C': array, 'G': array, 'T': array},
+#                         'Crick Signal': {'A': array, 'C': array, 'G': array, 'T': array}
+#                     }
+#                 }
+#             },
+#             'phi': { ... same structure as 'mu' ... }
+#         }
+        
+#         Arrays contain position-wise parameters (length = TF motif length)
+#         TFs with <50 sites are grouped under 'combined_low_count' key
+#     """
+    
+#     # Initialize R fitdistrplus
+#     fitdist = importr('fitdistrplus')
+    
+#     if tech != "Fiber_seq":
+#         # Load BAM file
+#         samfile = pysam.AlignmentFile(bamFile, "rb")
+    
+#     # Load reference genome - TODO: Make this configurable instead of hardcoded
+#     fasta_file = {}
+#     for seq_record in SeqIO.parse("/home/rapiduser/programs/RoboCOP/analysis/inputs/SacCer3.fa", "fasta"):
+#         fasta_file[seq_record.id] = seq_record.seq
+    
+#     # Load TF binding sites
+#     tfs = pd.read_csv(csvFile, sep='\t', header=None)
+#     tfs = tfs.rename(columns={0: 'chr', 1: 'start', 2: 'end', 3: 'tf_name', 4: 'score', 5: 'strand'})
+    
+#     # Filter TFs by count threshold
+#     tf_counts = tfs.groupby('tf_name')['chr'].count()
+#     ind_tfs = list(tf_counts.loc[tf_counts >= 50].index)
+    
+#     # Initialize the nested dictionary structure: mu/phi -> TF -> motif_strand -> signal_strand -> ACGT
+#     params_all = {
+#         'mu': {},
+#         'phi': {}
+#     }
+    
+#     # Process each TF individually
+#     for tf_name in ind_tfs:
+#         params_all['mu'][tf_name] = {}
+#         params_all['phi'][tf_name] = {}
+        
+#         # Process both Watson and Crick motif orientations
+#         for motif_strand in ['+', '-']:
+#             motif_name = 'Watson Motif' if motif_strand == '+' else 'Crick Motif'
+            
+#             if tech != "Fiber_seq":
+#                 tf_params = compute_individual_DMSTFPhisMus(
+#                     samfile, tfs, tf_name, motif_strand, fasta_file, fitdist, offset
+#                 )
+#             elif tech == "Fiber_seq":
+#                 # For Fiber-seq, we need to handle the pileup data differently
+#                 tf_params = compute_individual_Fiber_seq_TFPhisMus(
+#                     modkitFile, tfs, tf_name, motif_strand, fasta_file, fitdist, offset
+#                 )
+            
+#             # Structure: TF -> motif_strand -> signal_strand -> base
+#             params_all['mu'][tf_name][motif_name] = {
+#                 'Watson Signal': tf_params['mu']['watson'],
+#                 'Crick Signal': tf_params['mu']['crick']
+#             }
+#             params_all['phi'][tf_name][motif_name] = {
+#                 'Watson Signal': tf_params['phi']['watson'],
+#                 'Crick Signal': tf_params['phi']['crick']
+#             }
+
+#         plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Watson Motif']['Watson Signal'], params_all['phi'][tf_name]['Watson Motif']['Watson Signal'], strand_label="Watson", tf_name=tf_name)
+#         plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Watson Motif']['Crick Signal'], params_all['phi'][tf_name]['Watson Motif']['Crick Signal'], strand_label="Crick", tf_name=tf_name)
+#         plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Crick Motif']['Watson Signal'], params_all['phi'][tf_name]['Crick Motif']['Watson Signal'], strand_label="Watson", tf_name=tf_name)
+#         plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Crick Motif']['Crick Signal'], params_all['phi'][tf_name]['Crick Motif']['Crick Signal'], strand_label="Crick", tf_name=tf_name)
+    
+    
+#     # Handle TFs with < 50 sites as a combined group if needed
+#     tf_counts_low = tf_counts.loc[tf_counts < 50]
+#     if len(tf_counts_low) > 0:
+#         # Combine all low-count TFs into one group
+#         combined_tfs = list(tf_counts_low.index)
+#         params_all['mu']['combined_low_count'] = {}
+#         params_all['phi']['combined_low_count'] = {}
+        
+#         for motif_strand in ['+', '-']:
+#             motif_name = 'Watson Motif' if motif_strand == '+' else 'Crick Motif'
+
+#             if tech != "Fiber_seq":
+#                 combined_params = compute_combined_DMSTFPhisMus(
+#                     samfile, tfs, combined_tfs, motif_strand, fasta_file, fitdist, offset
+#                 )
+#             elif tech == "Fiber_seq":
+#                 # For Fiber-seq, we need to handle the pileup data differently
+#                 combined_params = compute_individual_Fiber_seq_TFPhisMus(
+#                     modkitFile, tfs, combined_tfs, motif_strand, fasta_file, fitdist, offset
+#                 )
+            
+            
+#             params_all['mu']['combined_low_count'][motif_name] = {
+#                 'Watson Signal': combined_params['mu']['watson'],
+#                 'Crick Signal': combined_params['mu']['crick']
+#             }
+#             params_all['phi']['combined_low_count'][motif_name] = {
+#                 'Watson Signal': combined_params['phi']['watson'],
+#                 'Crick Signal': combined_params['phi']['crick']
+#             }
+    
+#     if tech == "DMS_seq":
+#         samfile.close()
+#     return params_all
+
+# def computeMNaseTFPhisMus(tech, bamFile, modkitFile, csvFile, tmpDir, fragRange, filename, offset=0):
+#     fitdist = importr('fitdistrplus')
+#     if tech != "Fiber_seq":
+#         samfile = pysam.AlignmentFile(bamFile, "rb")
+#     fasta_file = {}
+#     for seq_record in SeqIO.parse("/home/rapiduser/programs/RoboCOP/analysis/inputs/SacCer3.fa", "fasta"):
+#         fasta_file[seq_record.id] = seq_record.seq
+#     tfs = pd.read_csv(csvFile, sep='\t', header=None)
+#     tfs = tfs.rename(columns={0: 'chr', 1: 'start', 2: 'end', 3: 'tf_name', 4: 'score', 5: 'strand'})
+#     tf_counts = tfs.groupby('tf_name')['chr'].count()
+#     ind_tfs = list(tf_counts.loc[tf_counts >= 50].index)
+
+#     params_all = {
+#         'mu': {},
+#         'phi': {}
+#     }
+
+#     for tf_name in ind_tfs:
+#         # For Fiber_seq or DMS_seq, get counts for both Watson and Crick motif strands separately
+#         if tech != "Fiber_seq":
+#             watson_counts = compute_individual_DMSTFPhisMus(
+#                 samfile, tfs, tf_name, '+', fasta_file, fitdist, offset
+#             )
+#             crick_counts = compute_individual_DMSTFPhisMus(
+#                 samfile, tfs, tf_name, '-', fasta_file, fitdist, offset
+#             )
+#         else:
+#             watson_counts = compute_individual_Fiber_seq_TFPhisMus(
+#                 modkitFile, tfs, tf_name, '+', fasta_file, fitdist, offset
+#             )
+#             crick_counts = compute_individual_Fiber_seq_TFPhisMus(
+#                 modkitFile, tfs, tf_name, '-', fasta_file, fitdist, offset
+#             )
+
+#         combined_counts = combine_motif_counts(watson_counts, crick_counts)
+
+#         if combined_counts['num_sites'] == 0:
+#             params = create_default_params_individual()
+#         else:
+#             params = fit_nb_parameters(combined_counts, combined_counts['tf_len'], combined_counts['num_sites'], fitdist)
+
+#         params_all['mu'][tf_name] = {
+#             'Watson Signal': params['mu']['watson'],
+#             'Crick Signal': params['mu']['crick']
+#         }
+#         params_all['phi'][tf_name] = {
+#             'Watson Signal': params['phi']['watson'],
+#             'Crick Signal': params['phi']['crick']
+#         }
+
+#         # Optionally, plot heatmaps here
+#         plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Watson Signal'], params_all['phi'][tf_name]['Watson Signal'], strand_label="Watson", tf_name=tf_name)
+#         plot_mu_phi_heatmaps(params_all['mu'][tf_name]['Crick Signal'], params_all['phi'][tf_name]['Crick Signal'], strand_label="Crick", tf_name=tf_name)
+
+#     ### Handle combined low count TFs similarly with modification ###
+
+#     tf_counts_low = tf_counts.loc[tf_counts < 50]
+#     if len(tf_counts_low) > 0:
+#         combined_tfs = list(tf_counts_low.index)
+#         if tech != "Fiber_seq":
+#             watson_counts = compute_combined_DMSTFPhisMus(  # you may need to modify this function similarly to return raw counts.
+#                 samfile, tfs, combined_tfs, '+', fasta_file, fitdist, offset
+#             )
+#             crick_counts = compute_combined_DMSTFPhisMus(
+#                 samfile, tfs, combined_tfs, '-', fasta_file, fitdist, offset
+#             )
+#         else:
+#             # Use the new combined Fiber_seq function
+#             watson_counts = compute_combined_Fiber_seq_TFPhisMus(
+#                 modkitFile, tfs, combined_tfs, '+', fasta_file, fitdist, offset
+#             )
+#             crick_counts = compute_combined_Fiber_seq_TFPhisMus(
+#                 modkitFile, tfs, combined_tfs, '-', fasta_file, fitdist, offset
+#             )
+
+#         combined_counts = combine_motif_counts(watson_counts, crick_counts)
+
+#         if combined_counts['num_sites'] == 0:
+#             params = create_default_params_individual()
+#         else:
+#             params = fit_nb_parameters(combined_counts, combined_counts['tf_len'], combined_counts['num_sites'], fitdist)
+
+#         params_all['mu']['combined_low_count'] = {
+#             'Watson Signal': params['mu']['watson'],
+#             'Crick Signal': params['mu']['crick']
+#         }
+#         params_all['phi']['combined_low_count'] = {
+#             'Watson Signal': params['phi']['watson'],
+#             'Crick Signal': params['phi']['crick']
+#         }
+
+#     if tech == "DMS_seq":
+#         samfile.close()
+
+#     return params_all
 
 
+# def compute_combined_DMSTFPhisMus(samfile, tfs_df, tf_names_list, motif_strand, fasta_file, fitdist, offset=0):
+#     """
+#     Compute combined counts for multiple low-count TFs (DMS_seq/Fiber_seq-like BAM input),
+#     aggregating methylation fragment counts at each position and for each base on both 
+#     signal strands, without fitting distributions inside this function.
+
+#     Parameters:
+#     -----------
+#     samfile : pysam.AlignmentFile
+#         Opened BAM file object for reading sequencing data
+#     tfs_df : pd.DataFrame
+#         DataFrame containing TF binding sites (columns: chr, start, end, tf_name, score, strand)
+#     tf_names_list : list of str
+#         List of TF names to combine (usually low-count TFs)
+#     motif_strand : str
+#         '+' for Watson motif strand, '-' for Crick motif strand
+#     fasta_file : dict
+#         Dictionary mapping chromosome names to Bio.SeqRecord.seq objects with reference genome
+#     fitdist : rpy2 R package import
+#         Imported fitdistrplus R package via rpy2 (not used here, but kept for consistency)
+#     offset : int, optional
+#         Position offset adjustment (default 0)
+
+#     Returns:
+#     --------
+#     dict
+#         Dictionary with structure:
+#         {
+#           'watson_signal': {base: list of counts},
+#           'crick_signal': {base: list of counts},
+#           'tf_len': int motif length (mode length across combined TFs),
+#           'num_sites': int number of sites used
+#         }
+#     """
+#     base_names = ['A', 'C', 'G', 'T']
+#     signal_strand_names = ['watson', 'crick']
+
+#     # Initialize aggregated counts as empty lists
+#     tf_counts = {strand: {base: [] for base in base_names} for strand in signal_strand_names}
+
+#     combined_df = tfs_df.loc[(tfs_df['tf_name'].isin(tf_names_list)) & (tfs_df['strand'] == motif_strand)]
+
+#     if len(combined_df) == 0:
+#         return create_default_params_individual()
+
+#     # Determine most common TF length (mode)
+#     tf_lengths = combined_df['end'] - combined_df['start']
+#     tf_len = int(tf_lengths.mode().iloc[0])  # Most common length
+
+#     # Iterate over each binding site, skip if length not equal to mode tf_len
+#     for _, r1 in combined_df.iterrows():
+#         site_len = r1['end'] - r1['start']
+#         if site_len != tf_len:
+#             continue
+
+#         chrm = r1['chr']
+
+#         # Initialize site counts with pseudocount 1 to avoid zeros
+#         site_counts = {
+#             strand: {base: [1]*tf_len for base in base_names} 
+#             for strand in signal_strand_names
+#         }
+
+#         # Fetch reads overlapping this TF site
+#         region = samfile.fetch(chrm, r1['start'] - 1, r1['end'] + 1)
+
+#         for read in region:
+#             if read.template_length == 0:
+#                 continue
+
+#             if read.template_length > 0:  # Watson signal strand
+#                 frag_start = read.reference_start  # 0-based start of alignment
+#                 if r1['start'] <= frag_start + 1 <= r1['end']:
+#                     nucleotide = SeqFeature(FeatureLocation(frag_start, frag_start + 1)).extract(fasta_file[chrm])
+#                     pos = (frag_start + 1) - r1['start']  # position relative to TF start
+#                     if str(nucleotide) in base_names:
+#                         site_counts['watson'][str(nucleotide)][pos] += 1
+
+#             elif read.template_length < 0:  # Crick signal strand
+#                 frag_end = read.reference_end  # 0-based exclusive end of alignment
+#                 # Reference end is exclusive, so frag_end actually one past last ref covered base
+#                 # Adjusting to 1-based coordinate internally consistent with TF site coordinates
+#                 adjusted_frag_end = frag_end
+#                 if r1['start'] <= adjusted_frag_end <= r1['end']:
+#                     nucleotide = SeqFeature(FeatureLocation(adjusted_frag_end -1, adjusted_frag_end)).extract(fasta_file[chrm])
+#                     pos = adjusted_frag_end - r1['start']  # position relative to TF start
+#                     complement_map = {'A':'T', 'C':'G', 'G':'C', 'T':'A'}
+#                     if str(nucleotide) in complement_map:
+#                         site_counts['crick'][complement_map[str(nucleotide)]][pos] += 1
+
+#         # Append site counts flattened by base and strand into aggregate lists
+#         for strand in signal_strand_names:
+#             for base in base_names:
+#                 tf_counts[strand][base].extend(site_counts[strand][base])
+
+#     return {
+#         'watson_signal': tf_counts['watson'],
+#         'crick_signal': tf_counts['crick'],
+#         'tf_len': tf_len,
+#         'num_sites': len(combined_df)
+#     }
+
+# def compute_individual_Fiber_seq_TFPhisMus(modkitFile, tfs_df, tf_name, motif_strand, fasta_file, fitdist, offset=0):
+#     """
+#     Compute negative binomial parameters for a single transcription factor on one motif strand.
+#     Extracts methylation fragment counts at each nucleotide position, distinguishes Watson/Crick
+#     signal strands, and fits negative binomial distributions across all binding sites.
+    
+#     Parameters:
+#     -----------
+#     modkitFile : modkit pileup file
+#         dataframe of modkit file
+#     tfs_df : pd.DataFrame
+#         DataFrame containing TF binding site information with columns:
+#         chr, start, end, tf_name, score, strand
+#     tf_name : str
+#         Name of the specific transcription factor to process
+#     motif_strand : str
+#         Motif orientation: '+' for Watson Motif, '-' for Crick Motif
+#     fasta_file : dict
+#         Dictionary mapping chromosome names to Bio.SeqRecord.seq objects
+#         containing reference genome sequences
+#     fitdist : rpy2 R package
+#         R fitdistrplus package imported via rpy2 for negative binomial fitting
+#     offset : int, optional
+#         Position offset adjustment (default: 0, currently unused)
+        
+#     Returns:
+#     --------
+#     dict
+#         Dictionary with structure:
+#         {
+#             'mu': {
+#                 'watson': {'A': array, 'C': array, 'G': array, 'T': array},
+#                 'crick': {'A': array, 'C': array, 'G': array, 'T': array}
+#             },
+#             'phi': {
+#                 'watson': {'A': array, 'C': array, 'G': array, 'T': array},
+#                 'crick': {'A': array, 'C': array, 'G': array, 'T': array}
+#             }
+#         }
+        
+#         Arrays contain fitted parameters for each position in the TF motif
+#     """
+#     # Initialize count arrays for each signal strand and base
+#     base_names = ['A', 'C', 'G', 'T']
+#     signal_strand_names = ['watson', 'crick']
+    
+#     tf_counts = {strand: {base: [] for base in base_names} for strand in signal_strand_names}
+    
+#     # Get all sites for this TF on the specified motif strand
+#     one_tf_df = tfs_df.loc[(tfs_df['tf_name'] == tf_name) & (tfs_df['strand'] == motif_strand)]
+    
+#     if len(one_tf_df) == 0:
+#         return create_default_params_individual()
+    
+#     # Get TF length (assuming consistent length for this TF)
+#     tf_len = one_tf_df.iloc[0]['end'] - one_tf_df.iloc[0]['start']
+
+#     modified_bases_df = pd.read_csv(modkitFile, sep='\t', header=None)
+#     # Split the 9th column into multiple columns
+#     split_columns = modified_bases_df[9].str.split(' ', expand=True)
+#     split_columns.columns = [i for i in range(9,9+split_columns.shape[1])]
+
+#     # Drop the original 9th column and concatenate the new columns back to the original DataFrame
+#     modified_bases_df = pd.concat([modified_bases_df.drop(columns=[9]), split_columns], axis=1)
+    
+#     for i1, r1 in one_tf_df.iterrows():
+#         chrm = r1['chr']
+        
+#         # Initialize counts for this TF site
+#         site_counts = {
+#             strand: {base: [1] * tf_len for base in base_names} 
+#             for strand in signal_strand_names
+#         }
+
+
+#         # Filter for relevant rows based on chromosome and position
+#         relevant_rows = modified_bases_df[
+#             (modified_bases_df[0] == chrm) &
+#             (modified_bases_df[1] < r1['end']) &
+#             (modified_bases_df[2] > r1['start'])
+#         ]
+
+#         for _, row in relevant_rows.iterrows():
+#             modified_base = row[3].upper()
+#             strand_info = row[5]
+#             count = int(row[11])
+#             ## row[1] is bed file start coordinate which is 0 indexed. 
+#             ##  r1['start'] is also from a bed file and is also 0 indexed
+#             pos = row[1] - r1['start']
+
+#             if strand_info == '+':
+#                 if modified_base in base_names:
+#                     site_counts['watson'][modified_base][pos] += count
+#             elif strand_info == '-':
+#                 if modified_base in base_names:
+#                     site_counts['crick'][modified_base][pos] += count
+        
+#         # Accumulate counts across all sites for this TF
+#         for strand in signal_strand_names:
+#             for base in base_names:
+#                 tf_counts[strand][base].extend(site_counts[strand][base])
+    
+#     # Fit negative binomial parameters
+#     return {
+#         'watson_signal': tf_counts['watson'],
+#         'crick_signal': tf_counts['crick'],
+#         'tf_len': tf_len,
+#         'num_sites': len(one_tf_df)
+#     }

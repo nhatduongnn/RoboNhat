@@ -1,7 +1,7 @@
 from ctypes import *
 import numpy as np
 from numpy.ctypeslib import ndpointer
-from scipy.stats import nbinom, gamma
+from scipy.stats import nbinom, gamma, binom
 import sys, os
 from .nucleosome.calc_dinucleotide import getDiNuc
 import pickle
@@ -230,7 +230,7 @@ def _build_data_emission_matrix(dshared, segment, n_obs):
     info_file = dshared['info_file']
     if n_obs is None: n_obs = info_file['segment_' + str(segment)].attrs['n_obs']
     for t in range(dshared['timepoints']):
-        data_emat = np.ones((5, n_obs, dshared['n_states']))
+        data_emat = np.ones((7, n_obs, dshared['n_states']))
         if dshared['nucleotides'] is not None: update_data_emission_matrix_using_nucleotides(data_emat, dshared, segment, n_obs)
     k = 'segment_' + str(segment) + '/emission'
     if k not in info_file.keys():
@@ -357,6 +357,41 @@ def update_data_emission_matrix_using_negative_binomial(
             data_emission_matrix[index][i][j] *= dictionary[(phis[j], mus[j])][data[i]]
     emat = info_file['segment_' + str(segment) + '/emission']
     emat[...] = data_emission_matrix
+
+
+def update_data_emission_matrix_using_negative_binomial_fiber_seq(
+            segment, dshared, phis, mus, data, index, timepoint):
+    """
+    Update the data emission matrix based on the negative binomial
+    distribution.
+    This function allows using different phi and mu for every single state.
+    phis: an array containing phi for every non-silent state 
+    mus:  an array containing mu for every non-silent state 
+    data: an array of integer data_emission_matrix
+    """
+    info_file = dshared['info_file']
+    data_emission_matrix = info_file['segment_' + str(segment) + '/emission'][:] # d['data_emission_matrix']
+    n_obs = info_file['segment_' + str(segment)].attrs['n_obs']
+    dictionary = {}
+    for i in range(n_obs):
+        for j in range(dshared['silent_states_begin']):
+            if (phis[j], mus[j]) not in dictionary:
+                dictionary[(phis[j], mus[j])] = {}
+                p = phis[j]/(mus[j] + phis[j])
+                dictionary[(phis[j], mus[j])][data[i]] = nbinom.pmf(data[i], phis[j], p)
+            elif data[i] not in dictionary[(phis[j], mus[j])]:
+                p = phis[j]/(mus[j] + phis[j])
+                dictionary[(phis[j], mus[j])][data[i]] = nbinom.pmf(data[i], phis[j], p)
+            data_emission_matrix[index][i][j] *= dictionary[(phis[j], mus[j])][data[i]]
+    emat = info_file['segment_' + str(segment) + '/emission']
+
+    ## Hard code to only keep emission for only ABF1, delete later!!!
+    data_emission_matrix[index][14:, :] = 1
+
+    ## Nucleosomes also need to be set to 1
+    data_emission_matrix[index][dshared['nuc_start']:(dshared['nuc_start'] + dshared['nuc_len']),:] = 1
+
+    emat[...] = data_emission_matrix
     
 def update_data_emission_matrix_using_mnase_midpoint_counts_onePhi(
             segment, dshared, nuc_phi, nuc_mus, tf_phi, tf_mu, other_phi, other_mu, mnaseType, tech = "MNase"):
@@ -393,6 +428,177 @@ def update_data_emission_matrix_using_mnase_midpoint_counts_onePhi(
         elif mnaseType == 'short' and tech == "ATAC": update_data_emission_matrix_using_negative_binomial(segment, dshared, phis, mus, mnaseData, 3, t)
         elif mnaseType == 'long' and tech == "MNase": update_data_emission_matrix_using_negative_binomial(segment, dshared, phis, mus, mnaseData, 2, t)
         elif mnaseType == 'long' and tech == "ATAC": update_data_emission_matrix_using_negative_binomial(segment, dshared, phis, mus, mnaseData, 4, t)
+
+
+def update_data_emission_matrix_using_fiber_seq_counts_onePhi(
+            segment, dshared, nuc_phi, nuc_mus, tf_phi, tf_mu, other_phi, other_mu, FiberType, tech = "MNase"):
+    """
+    Update data emission matrix using N.B.
+    """
+    tf_starts = dshared['tf_starts']
+    tf_lens = dshared['tf_lens']
+    k = 'segment_' + str(segment) + '/' 
+    info_file = dshared['info_file']
+
+    if FiberType == 'watson':
+        # Load raw fiber_Seq data
+        fiber_seq_data_watson = np.load("inputs/fiber_seq_data_count_meth_watson.npy")
+        strand = 'Watson Signal'
+    else:
+        fiber_seq_data_crick = np.load("inputs/fiber_seq_data_count_meth_crick.npy")
+        strand = 'Crick Signal'
+
+        # Save the dictionary to a file
+    with open('inputs/abf1_reb1_params.pkl', 'rb') as f:
+        loaded_params = pickle.load(f)
+
+
+    phis = np.zeros(dshared['silent_states_begin'])
+    mus = np.zeros(dshared['silent_states_begin'])
+
+    ## Assign all TFs to parameters of combined_low_count. 
+    ## Basically any TFs that do not have data on will get parameters belong to low count TFs
+    phis[:] = loaded_params['phi']['combined_low_count'][strand]['A']
+    mus[:] = loaded_params['mu']['combined_low_count'][strand]['A']
+
+
+    tf_name_trimmed = [tf.split('_')[0].upper() for tf in dshared['tfs']]
+
+    for i in range(dshared['n_tfs']):
+        tf_start = tf_starts[i]
+        tf_end = tf_start + 2 * tf_lens[i]
+        
+
+        if tf_name_trimmed[i] in loaded_params['mu']:
+            mu_param_forward = loaded_params['mu'][tf_name_trimmed[i]][strand]['A']
+            mu_param_reverse = loaded_params['mu'][tf_name_trimmed[i]][strand]['A'][::-1]
+            mus[tf_start:tf_end] = np.concatenate((mu_param_reverse, mu_param_forward))
+
+        if tf_name_trimmed[i] in loaded_params['phi']:
+            phi_param_forward = loaded_params['phi'][tf_name_trimmed[i]][strand]['A']
+            phi_param_reverse = loaded_params['phi'][tf_name_trimmed[i]][strand]['A'][::-1]
+            phis[tf_start:tf_end] = np.concatenate((phi_param_reverse, phi_param_forward))
+
+
+        # phis[tf_start:tf_end] = tf_phi
+        # mus[tf_start:tf_end] = tf_mu
+    # if dshared['nuc_present']:
+    #     mus[dshared['nuc_start']:(dshared['nuc_start']+9)] = nuc_mus[0:9]
+    #     for i in range(128):
+    #         mus[(dshared['nuc_start']+9 + i*4):((dshared['nuc_start'] + 9 + i*4 + 4))] = nuc_mus[i+9]
+    #     mus[(dshared['nuc_start'] + 9 + 128*4):(dshared['nuc_start'] + 9 + 128*4 + 10)] = nuc_mus[137:147]
+    #     phis[dshared['nuc_start']:(dshared['nuc_start'] + dshared['nuc_len'])] = nuc_phi
+    assert (mus == 0).sum() == 0
+    assert (phis == 0).sum() == 0
+    for t in range(dshared['timepoints']):
+        if FiberType == 'watson' : update_data_emission_matrix_using_negative_binomial_fiber_seq(segment, dshared, phis, mus, fiber_seq_data_watson, 5, t)
+        elif FiberType == 'crick' : update_data_emission_matrix_using_negative_binomial_fiber_seq(segment, dshared, phis, mus, fiber_seq_data_crick, 6, t)
+        # if mnaseType == 'short' and tech == "MNase": update_data_emission_matrix_using_negative_binomial(segment, dshared, phis, mus, mnaseData, 1, t)
+        # elif mnaseType == 'short' and tech == "ATAC": update_data_emission_matrix_using_negative_binomial(segment, dshared, phis, mus, mnaseData, 3, t)
+        # elif mnaseType == 'long' and tech == "MNase": update_data_emission_matrix_using_negative_binomial(segment, dshared, phis, mus, mnaseData, 2, t)
+        # elif mnaseType == 'long' and tech == "ATAC": update_data_emission_matrix_using_negative_binomial(segment, dshared, phis, mus, mnaseData, 4, t)
+
+def update_data_emission_matrix_using_fiber_seq_counts_Bionomial(
+            segment, dshared, nuc_phi, nuc_mus, tf_phi, tf_mu, other_phi, other_mu, FiberType, tech = "MNase"):
+    """
+    Update data emission matrix using Binomial distribution.
+    """
+    tf_starts = dshared['tf_starts']
+    tf_lens = dshared['tf_lens']
+    k = 'segment_' + str(segment) + '/'
+    info_file = dshared['info_file']
+    
+    # Load fiber-seq input
+    if FiberType == 'watson':
+        fiber_seq_meth_watson = np.load("inputs/fiber_seq_data_count_meth_watson.npy")
+        fiber_seq_A_watson = np.load("inputs/fiber_seq_data_count_A_watson.npy")
+        strand = 'watson_signal'
+    else:
+        fiber_seq_meth_crick = np.load("inputs/fiber_seq_data_count_meth_crick.npy")
+        fiber_seq_A_crick = np.load("inputs/fiber_seq_data_count_A_crick.npy")
+        strand = 'crick_signal'
+
+    # Load parameters (now contains probabilities 'p')
+    with open('inputs/abf1_reb1_params.pkl', 'rb') as f:
+        loaded_params = pickle.load(f)
+
+    # Load parameters (now contains probabilities 'p')
+    with open('inputs/nucleosome_params.pkl', 'rb') as f:
+        nucleosome_params = pickle.load(f)
+
+    # Load parameters (now contains probabilities 'p')
+    with open('inputs/bg_params.pkl', 'rb') as f:
+        bg_params = pickle.load(f)
+
+    ps = np.zeros(dshared['silent_states_begin'])
+
+    # Default all TFs → combined low count parameters
+    ps[:] = bg_params['p'][strand]['A']
+
+    tf_name_trimmed = [tf.split('_')[0].upper() for tf in dshared['tfs']]
+    for i in range(dshared['n_tfs']):
+        tf_start = tf_starts[i]
+        tf_end = tf_start + 2 * tf_lens[i]
+        if tf_name_trimmed[i] in loaded_params['p']:
+            p_forward = loaded_params['p'][tf_name_trimmed[i]][strand]['A']
+            p_reverse = loaded_params['p'][tf_name_trimmed[i]][strand]['A'][::-1]
+            ps[tf_start:tf_end] = np.concatenate((p_reverse, p_forward))
+
+    nuc_p_params = nucleosome_params['p'][strand]['A']
+    if dshared['nuc_present']:
+        ps[dshared['nuc_start']:(dshared['nuc_start']+9)] = nuc_p_params[0:9]
+        for i in range(128):
+            ps[(dshared['nuc_start']+9 + i*4):((dshared['nuc_start'] + 9 + i*4 + 4))] = nuc_p_params[i+9]
+        ps[(dshared['nuc_start'] + 9 + 128*4):(dshared['nuc_start'] + 9 + 128*4 + 10)] = nuc_p_params[137:147]
+
+    # No need for mu/phi asserts anymore
+    assert (ps > 0).sum() > 0
+
+    for t in range(dshared['timepoints']):
+        if FiberType == 'watson':
+            update_data_emission_matrix_using_binomial_fiber_seq(
+                segment, dshared, ps, fiber_seq_meth_watson, fiber_seq_A_watson, 5, t)
+        elif FiberType == 'crick':
+            update_data_emission_matrix_using_binomial_fiber_seq(
+                segment, dshared, ps, fiber_seq_meth_crick, fiber_seq_A_crick, 6, t)
+
+
+def update_data_emission_matrix_using_binomial_fiber_seq(
+        segment, dshared, ps, data, data_trials, index, timepoint):
+    """
+    Update the data emission matrix based on the Binomial distribution.
+    ps: array of success probabilities for each non-silent state
+    data: list/dict with entries for each observation: {'successes': k, 'trials': n}
+    """
+    info_file = dshared['info_file']
+    data_emission_matrix = info_file['segment_' + str(segment) + '/emission'][:]
+    n_obs = info_file['segment_' + str(segment)].attrs['n_obs']
+    nucleotides = info_file['segment_' + str(segment) + '/nucleotides'][:]
+    dictionary = {}  # cache probabilities to avoid recomputation
+    
+    for i in range(n_obs):
+        if nucleotides[i] == 0:  # only proceed if nucleotide is 'A'
+            k = data[i]   # observed successes
+            n = data_trials[i]      # number of trials
+            for j in range(dshared['silent_states_begin']):
+                p_j = ps[j]
+                # Create caching dictionary if not present
+                if (p_j, n) not in dictionary:
+                    dictionary[(p_j, n)] = {}
+                if k not in dictionary[(p_j, n)]:
+                    dictionary[(p_j, n)][k] = binom.pmf(k, n, p_j)
+                # Multiply emission matrix
+                data_emission_matrix[index][i][j] *= dictionary[(p_j, n)][k]
+        else:
+            # If nucleotide is not 'A', set emission probs to 0
+            data_emission_matrix[index][i, :dshared['silent_states_begin']] = 0
+    
+    ### Hard code to only keep emission for only ABF1, delete later!!!
+    emat = info_file['segment_' + str(segment) + '/emission']
+    # data_emission_matrix[index][14:, :] = 1
+    # data_emission_matrix[index][dshared['nuc_start']:(dshared['nuc_start'] + dshared['nuc_len']), :] = 1
+    emat[...] = data_emission_matrix
+
 
 def set_transition(d, tf_prob, background_prob, nucleosome_prob):
     """

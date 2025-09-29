@@ -379,6 +379,328 @@ def plot_aggregate_density_plot(data_path, positions):
 #     return seq_df,seq_df_base_prob,prob_logo,bit_logo
 
 
+# def plot_motif_logo(
+#     fasta_file_dir,
+#     TF_start_pos_original,
+#     seq_width,
+#     shift,
+#     ax1=None,
+#     ax2=None,
+#     fasta_type='number',
+#     bases='AG',
+#     font_scale=1.0
+# ):
+#     """
+#     Plot motif probability/information logo on provided axes.
+#     font_scale: scales axis/tick label font size (default=1.0).
+#     Now accounts for strand field: negative strand windows are reverse complemented.
+#     TF_start_pos_original: DataFrame with 'Chromosome', 'pos' 1 indexed, and optionally 'Strand' columns.
+#     """
+#     # Set base font sizes
+#     base_fontsize = 11 * font_scale
+#     label_size = int(base_fontsize * 1.2)
+#     tick_size = int(base_fontsize * 0.95)
+#     fasta_file = {}
+#     for seq_record in SeqIO.parse(fasta_file_dir, "fasta"):
+#         if fasta_type == 'roman':
+#             fasta_file[seq_record.id] = seq_record.seq
+#         elif fasta_type == 'number':
+#             if seq_record.id != 'chrM':
+#                 # you'll need to define from_roman if using this:
+#                 fasta_file[from_roman(seq_record.id.split('chr')[1])] = seq_record.seq
+#             elif seq_record.id == 'chrM':
+#                 fasta_file[seq_record.id.split('chr')[1]] = seq_record.seq
+#     TF_start_pos = TF_start_pos_original.copy()
+#     TF_start_pos['pos'] = TF_start_pos['pos'] + shift
+#     seq_mat = np.zeros([TF_start_pos.shape[0], seq_width + 1], dtype='str')
+#     for i in TF_start_pos.reset_index(drop=True).itertuples():
+#         start_wind = i.pos - int(seq_width / 2) - 1
+#         end_wind = i.pos + int(seq_width / 2)
+#         if start_wind <= 0 or end_wind > len(fasta_file[i.Chromosome]) - 1:
+#             print("chromosome is {}, position is {} and range is from {} to {}".format(i.Chromosome, i.pos, start_wind, end_wind))
+#             continue
+#         else:
+#             seq = fasta_file[i.Chromosome][start_wind:end_wind]
+#             # Key modification: handle strand!
+#             strand_val = getattr(i, 'Strand', '+')  # default '+'
+#             if str(strand_val) in ['-', '-1', -1]:
+#                 seq = seq.reverse_complement()
+#             seq_mat[i.Index, :] = np.array(seq)
+#     seq_df = pd.DataFrame(seq_mat)
+#     seq_df_base_count = seq_df.apply(lambda x: x.value_counts().reindex(['A','C','G','T'], fill_value=0))
+#     seq_df_base_prob = seq_df_base_count.apply(lambda x: x/seq_df.shape[0])
+#     seq_df_base_prob_AG_top_CT_bot = seq_df_base_prob.copy()
+#     if bases == 'AG':
+#         seq_df_base_prob_AG_top_CT_bot.loc["C"] *= -1
+#         seq_df_base_prob_AG_top_CT_bot.loc["T"] *= -1
+#         color_scheme = {'A': 'blue', 'C': 'orange', 'G': 'blue', 'T': 'orange'}
+#     elif bases == 'A':
+#         seq_df_base_prob_AG_top_CT_bot.loc["G"] = 0
+#         seq_df_base_prob_AG_top_CT_bot.loc["C"] = 0
+#         seq_df_base_prob_AG_top_CT_bot.loc["T"] *= -1
+#         color_scheme = {'A': 'blue', 'C': 'orange', 'G': 'blue', 'T': 'orange'}
+#     elif bases == 'G':
+#         seq_df_base_prob_AG_top_CT_bot.loc["A"] = 0
+#         seq_df_base_prob_AG_top_CT_bot.loc["T"] = 0
+#         seq_df_base_prob_AG_top_CT_bot.loc["C"] *= -1
+#         color_scheme = {'A': 'blue', 'C': 'orange', 'G': 'blue', 'T': 'orange'}
+#     elif bases == 'ACGT':
+#         color_scheme = {'A': 'blue', 'C': 'green', 'G': 'orange', 'T': 'red'}
+    
+    
+#     prob_logo = None
+#     if ax1 is not None:
+#         prob_logo = logomaker.Logo(
+#             seq_df_base_prob_AG_top_CT_bot.T,
+#             ax=ax1,
+#             shade_below=0,
+#             fade_below=0,
+#             color_scheme=color_scheme,
+#             font_name='Arial Rounded MT Bold'
+#         )
+#         prob_logo.style_spines(visible=False)
+#         prob_logo.style_spines(spines=['left', 'bottom'], visible=True)
+#         prob_logo.style_xticks(rotation=0, fmt='%d', anchor=0)
+#         prob_logo.ax.set_ylabel("Probability", fontsize=label_size)
+#         prob_logo.ax.yaxis.set_tick_params(pad=5, labelsize=tick_size)
+#         prob_logo.ax.xaxis.set_tick_params(pad=-1, labelsize=tick_size)
+#         prob_logo.ax.set_yticks(np.linspace(-1, 1, 5))
+#         prob_logo.ax.set_yticklabels(['%.1f' % x for x in abs(np.linspace(-1, 1, 5))], fontsize=tick_size)
+
+#         ## Set x ticks
+#         num_desired_ticks = 9
+#         tick_indices = np.linspace(0, seq_width, num_desired_ticks, dtype=int)
+#         tick_labels = np.linspace(-int(seq_width/2), int(seq_width/2), num_desired_ticks, dtype=int)
+#         prob_logo.ax.set_xticks(tick_indices)
+#         prob_logo.ax.set_xticklabels([f'{x}' for x in tick_labels], fontsize=tick_size)
+
+
+#         for i in range(len(prob_logo.glyph_df['T'])):
+#             prob_logo.glyph_df['T'][i].c = 'A'
+#             prob_logo.glyph_df['C'][i].c = 'G'
+#         prob_logo.style_glyphs_below(flip=True, mirror=True)
+
+#     max_information = 4 - 0.25 * np.log2(0.25)
+#     max_info_per_base = max_information - (seq_df_base_prob.apply(lambda x: -x*np.log2(x+1e-9))).sum(axis=0)
+#     seq_df_base_prob_w_max_info = pd.concat([seq_df_base_prob, pd.DataFrame(max_info_per_base).T], axis=0)
+#     seq_df_base_information = seq_df_base_prob_w_max_info.apply(lambda x: x*x.iloc[4]).iloc[:4,:]
+#     seq_df_base_information_AG_top_CT_bot = seq_df_base_information.copy()
+#     if bases == 'AG':
+#         seq_df_base_information_AG_top_CT_bot.loc["C"] *= -1
+#         seq_df_base_information_AG_top_CT_bot.loc["T"] *= -1
+#     elif bases == 'A':
+#         seq_df_base_information_AG_top_CT_bot.loc["G"] = 0
+#         seq_df_base_information_AG_top_CT_bot.loc["C"] = 0
+#         seq_df_base_information_AG_top_CT_bot.loc["T"] *= -1
+#     elif bases == 'G':
+#         seq_df_base_information_AG_top_CT_bot.loc["A"] = 0
+#         seq_df_base_information_AG_top_CT_bot.loc["T"] = 0
+#         seq_df_base_information_AG_top_CT_bot.loc["C"] *= -1
+#     bit_logo = None
+#     if ax2 is not None:
+#         bit_logo = logomaker.Logo(
+#             seq_df_base_information_AG_top_CT_bot.T,
+#             ax=ax2,
+#             shade_below=0,
+#             fade_below=0,
+#             color_scheme=color_scheme,
+#             font_name='Arial Rounded MT Bold'
+#         )
+#         bit_logo.style_spines(visible=False)
+#         bit_logo.style_spines(spines=['left', 'bottom'], visible=True)
+#         bit_logo.style_xticks(rotation=0, fmt='%d', anchor=0)
+#         bit_logo.ax.set_ylabel("Bit", fontsize=label_size)
+#         bit_logo.ax.yaxis.set_tick_params(pad=5, labelsize=tick_size)
+#         bit_logo.ax.xaxis.set_tick_params(pad=-1, labelsize=tick_size)
+#         bit_logo.ax.set_yticks(np.linspace(-2, 2, 5))
+#         bit_logo.ax.set_yticklabels(['%d' % x for x in abs(np.linspace(-2, 2, 5))], fontsize=tick_size)
+#         bit_logo.ax.set_xticks(tick_indices)
+#         bit_logo.ax.set_xticklabels([f'{x}' for x in tick_labels], fontsize=tick_size)
+#         for i in range(len(bit_logo.glyph_df['T'])):
+#             bit_logo.glyph_df['T'][i].c = 'A'
+#             bit_logo.glyph_df['C'][i].c = 'G'
+#         bit_logo.style_glyphs_below(flip=True, mirror=True)
+#     return seq_df, seq_df_base_prob, prob_logo, bit_logo
+
+# def plot_motif_logo(
+#     fasta_file_dir,
+#     TF_start_pos_original,
+#     seq_width,
+#     shift,
+#     ax1=None,
+#     ax2=None,
+#     fasta_type='number',
+#     bases='AG',
+#     font_scale=1.0,
+#     plot_negative_axis=True   ### NEW OPTION
+# ):
+#     """
+#     Plot motif probability/information logo on provided axes.
+#     font_scale: scales axis/tick label font size (default=1.0).
+#     Now accounts for strand field: negative strand windows are reverse complemented.
+#     TF_start_pos_original: DataFrame with 'Chromosome', 'pos' 1 indexed, and optionally 'Strand' columns.
+#     plot_negative_axis: if False, only positive y-axis is plotted.
+#     """
+
+#     # Set base font sizes
+#     base_fontsize = 11 * font_scale
+#     label_size = int(base_fontsize * 1.2)
+#     tick_size = int(base_fontsize * 0.95)
+
+#     fasta_file = {}
+#     for seq_record in SeqIO.parse(fasta_file_dir, "fasta"):
+#         if fasta_type == 'roman':
+#             fasta_file[seq_record.id] = seq_record.seq
+#         elif fasta_type == 'number':
+#             if seq_record.id != 'chrM':
+#                 fasta_file[from_roman(seq_record.id.split('chr')[1])] = seq_record.seq
+#             elif seq_record.id == 'chrM':
+#                 fasta_file[seq_record.id.split('chr')[1]] = seq_record.seq
+
+#     TF_start_pos = TF_start_pos_original.copy()
+#     TF_start_pos['pos'] = TF_start_pos['pos'] + shift
+#     seq_mat = np.zeros([TF_start_pos.shape[0], seq_width + 1], dtype='str')
+#     for i in TF_start_pos.reset_index(drop=True).itertuples():
+#         start_wind = i.pos - int(seq_width / 2) - 1
+#         end_wind = i.pos + int(seq_width / 2)
+#         if start_wind <= 0 or end_wind > len(fasta_file[i.Chromosome]) - 1:
+#             print(f"chromosome is {i.Chromosome}, position is {i.pos} and range is from {start_wind} to {end_wind}")
+#             continue
+#         else:
+#             seq = fasta_file[i.Chromosome][start_wind:end_wind]
+#             strand_val = getattr(i, 'Strand', '+')  # default '+'
+#             if str(strand_val) in ['-', '-1', -1]:
+#                 seq = seq.reverse_complement()
+#             seq_mat[i.Index, :] = np.array(seq)
+
+#     seq_df = pd.DataFrame(seq_mat)
+#     seq_df_base_count = seq_df.apply(lambda x: x.value_counts().reindex(['A','C','G','T'], fill_value=0))
+#     seq_df_base_prob = seq_df_base_count.apply(lambda x: x/seq_df.shape[0])
+
+#     seq_df_base_prob_mod = seq_df_base_prob.copy()
+
+#     # === Apply base flipping logic only if negative axis is desired ===
+#     if plot_negative_axis:
+#         if bases == 'AG':
+#             seq_df_base_prob_mod.loc["C"] *= -1
+#             seq_df_base_prob_mod.loc["T"] *= -1
+#             color_scheme = {'A': 'blue', 'C': 'orange', 'G': 'blue', 'T': 'orange'}
+#         elif bases == 'A':
+#             seq_df_base_prob_mod.loc["G"] = 0
+#             seq_df_base_prob_mod.loc["C"] = 0
+#             seq_df_base_prob_mod.loc["T"] *= -1
+#             color_scheme = {'A': 'blue', 'C': 'orange', 'G': 'blue', 'T': 'orange'}
+#         elif bases == 'G':
+#             seq_df_base_prob_mod.loc["A"] = 0
+#             seq_df_base_prob_mod.loc["T"] = 0
+#             seq_df_base_prob_mod.loc["C"] *= -1
+#             color_scheme = {'A': 'blue', 'C': 'orange', 'G': 'blue', 'T': 'orange'}
+#         elif bases == 'ACGT':
+#             color_scheme = {'A': 'blue', 'C': 'green', 'G': 'orange', 'T': 'red'}
+#     else:
+#         # Positive only: just normal colors
+#         color_scheme = {'A': 'blue', 'C': 'green', 'G': 'orange', 'T': 'red'}
+
+#     prob_logo = None
+#     if ax1 is not None:
+#         prob_logo = logomaker.Logo(
+#             seq_df_base_prob_mod.T,
+#             ax=ax1,
+#             shade_below=0,
+#             fade_below=0,
+#             color_scheme=color_scheme,
+#             font_name='Arial Rounded MT Bold'
+#         )
+#         prob_logo.style_spines(visible=False)
+#         prob_logo.style_spines(spines=['left', 'bottom'], visible=True)
+#         prob_logo.style_xticks(rotation=0, fmt='%d', anchor=0)
+#         prob_logo.ax.set_ylabel("Probability", fontsize=label_size)
+#         prob_logo.ax.yaxis.set_tick_params(pad=5, labelsize=tick_size)
+#         prob_logo.ax.xaxis.set_tick_params(pad=-1, labelsize=tick_size)
+
+#         if plot_negative_axis:
+#             prob_logo.ax.set_yticks(np.linspace(-1, 1, 5))
+#             prob_logo.ax.set_yticklabels([f'{abs(x):.1f}' for x in np.linspace(-1, 1, 5)], fontsize=tick_size)
+#             for i in range(len(prob_logo.glyph_df['T'])):
+#                 prob_logo.glyph_df['T'][i].c = 'A'
+#                 prob_logo.glyph_df['C'][i].c = 'G'
+#             prob_logo.style_glyphs_below(flip=True, mirror=True)
+#         else:
+#             prob_logo.ax.set_yticks(np.linspace(0, 1, 6))
+#             prob_logo.ax.set_yticklabels([f'{x:.1f}' for x in np.linspace(0, 1, 6)], fontsize=tick_size)
+
+#         # X ticks
+#         num_desired_ticks = 9
+#         tick_indices = np.linspace(0, seq_width, num_desired_ticks, dtype=int)
+#         tick_labels = np.linspace(-int(seq_width/2), int(seq_width/2), num_desired_ticks, dtype=int)
+#         prob_logo.ax.set_xticks(tick_indices)
+#         prob_logo.ax.set_xticklabels([f'{x}' for x in tick_labels], fontsize=tick_size)
+
+#     # === Info logo ===
+#     max_information = 4 - 0.25 * np.log2(0.25)
+#     max_info_per_base = max_information - (seq_df_base_prob.apply(lambda x: -x*np.log2(x+1e-9))).sum(axis=0)
+#     seq_df_base_prob_w_max_info = pd.concat([seq_df_base_prob, pd.DataFrame(max_info_per_base).T], axis=0)
+#     seq_df_base_information = seq_df_base_prob_w_max_info.apply(lambda x: x*x.iloc[4]).iloc[:4,:]
+
+#     seq_df_base_information_mod = seq_df_base_information.copy()
+#     if plot_negative_axis:
+#         if bases == 'AG':
+#             seq_df_base_information_mod.loc["C"] *= -1
+#             seq_df_base_information_mod.loc["T"] *= -1
+#         elif bases == 'A':
+#             seq_df_base_information_mod.loc["G"] = 0
+#             seq_df_base_information_mod.loc["C"] = 0
+#             seq_df_base_information_mod.loc["T"] *= -1
+#         elif bases == 'G':
+#             seq_df_base_information_mod.loc["A"] = 0
+#             seq_df_base_information_mod.loc["T"] = 0
+#             seq_df_base_information_mod.loc["C"] *= -1
+
+#     bit_logo = None
+#     if ax2 is not None:
+#         bit_logo = logomaker.Logo(
+#             seq_df_base_information_mod.T,
+#             ax=ax2,
+#             shade_below=0,
+#             fade_below=0,
+#             color_scheme=color_scheme,
+#             font_name='Arial Rounded MT Bold'
+#         )
+#         bit_logo.style_spines(visible=False)
+#         bit_logo.style_spines(spines=['left', 'bottom'], visible=True)
+#         bit_logo.style_xticks(rotation=0, fmt='%d', anchor=0)
+#         bit_logo.ax.set_ylabel("Bit", fontsize=label_size)
+#         bit_logo.ax.yaxis.set_tick_params(pad=5, labelsize=tick_size)
+#         bit_logo.ax.xaxis.set_tick_params(pad=-1, labelsize=tick_size)
+
+#         if plot_negative_axis:
+#             bit_logo.ax.set_yticks(np.linspace(-2, 2, 5))
+#             bit_logo.ax.set_yticklabels([f'{abs(int(x))}' for x in np.linspace(-2, 2, 5)], fontsize=tick_size)
+#             for i in range(len(bit_logo.glyph_df['T'])):
+#                 bit_logo.glyph_df['T'][i].c = 'A'
+#                 bit_logo.glyph_df['C'][i].c = 'G'
+#             bit_logo.style_glyphs_below(flip=True, mirror=True)
+#         else:
+#             # Positive only
+#             ymax = float(seq_df_base_information.max().max()) * 1.1
+#             bit_logo.ax.set_ylim(0, ymax)
+#             bit_logo.ax.set_yticks(np.linspace(0, np.ceil(ymax), 5))
+#             bit_logo.ax.set_yticklabels([f'{int(x)}' for x in np.linspace(0, np.ceil(ymax), 5)], fontsize=tick_size)
+
+#         bit_logo.ax.set_xticks(tick_indices)
+#         bit_logo.ax.set_xticklabels([f'{x}' for x in tick_labels], fontsize=tick_size)
+
+#     return seq_df, seq_df_base_prob, prob_logo, bit_logo
+
+
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+import logomaker
+from Bio import SeqIO
+
 def plot_motif_logo(
     fasta_file_dir,
     TF_start_pos_original,
@@ -388,136 +710,229 @@ def plot_motif_logo(
     ax2=None,
     fasta_type='number',
     bases='AG',
-    font_scale=1.0
+    font_scale=1.0,
+    plot_negative_axis=True,
+    box_color='lightgray',
+    box_alpha=0.3
 ):
     """
     Plot motif probability/information logo on provided axes.
-    font_scale: scales axis/tick label font size (default=1.0).
-    Now accounts for strand field: negative strand windows are reverse complemented.
-    TF_start_pos_original: DataFrame with 'Chromosome', 'pos' 1 indexed, and optionally 'Strand' columns.
+    Parameters
+    ----------
+    fasta_file_dir : str
+        Path to fasta reference genome
+    TF_start_pos_original : DataFrame
+        Must contain 'Chromosome', 'pos', 'start', 'end', 
+        and optionally 'Strand'.
+        For + strand: pos is the motif center as usual.
+        For - strand: pos is set to the 'end' coordinate.
+    seq_width : int
+        Window size around center to extract
+    shift : int
+        Extra shift for motif center
+    ax1, ax2 : matplotlib Axes
+        If not None, plots probability (ax1) and info logo (ax2)
+    fasta_type : str
+        How chromosomes are named ('number' or 'roman')
+    bases : str
+        Which bases to emphasize ('AG','A','G','ACGT')
+    font_scale : float
+        Scaling of tick/label fonts
+    plot_negative_axis : bool
+        If False, plot only positive axis (no flipping below 0)
+    box_color : str
+        Color of region highlight box
+    box_alpha : float
+        Transparency of region highlight box
     """
-    # Set base font sizes
+
+    # --- setup fonts ---
     base_fontsize = 11 * font_scale
     label_size = int(base_fontsize * 1.2)
     tick_size = int(base_fontsize * 0.95)
+
+    # --- strand-aware box computation ---
+    def _compute_relative_box(TF_df, seq_width):
+        """Compute relative highlight coordinates accounting for strand orientation."""
+        rel_coords = []
+        for row in TF_df.itertuples():
+            pos = row.pos
+            strand_val = getattr(row, 'Strand', '+')
+            if str(strand_val) in ['+', '1', '+1']:
+                rel_start = row.start - pos
+                rel_end   = row.end   - pos
+            else:
+                # Negative strand: invert relative orientation
+                rel_start = pos - row.end
+                rel_end   = pos - row.start
+            # enforce ordering
+            rel_start, rel_end = min(rel_start, rel_end), max(rel_start, rel_end)
+            rel_coords.append((rel_start, rel_end))
+        # Take median across occurrences
+        rel_start = np.median([c[0] for c in rel_coords])
+        rel_end   = np.median([c[1] for c in rel_coords])
+        # Shift into logo-coords (center = seq_width/2)
+        center = int(seq_width/2)
+        return rel_start+center, rel_end+center
+
+    # --- load FASTA ---
     fasta_file = {}
     for seq_record in SeqIO.parse(fasta_file_dir, "fasta"):
         if fasta_type == 'roman':
             fasta_file[seq_record.id] = seq_record.seq
         elif fasta_type == 'number':
             if seq_record.id != 'chrM':
-                # you'll need to define from_roman if using this:
-                fasta_file[from_roman(seq_record.id.split('chr')[1])] = seq_record.seq
-            elif seq_record.id == 'chrM':
+                fasta_file[int(seq_record.id.split('chr')[1])] = seq_record.seq
+            else:
                 fasta_file[seq_record.id.split('chr')[1]] = seq_record.seq
+
+    # --- adjust dataframe ---
     TF_start_pos = TF_start_pos_original.copy()
     TF_start_pos['pos'] = TF_start_pos['pos'] + shift
+
     seq_mat = np.zeros([TF_start_pos.shape[0], seq_width + 1], dtype='str')
     for i in TF_start_pos.reset_index(drop=True).itertuples():
         start_wind = i.pos - int(seq_width / 2) - 1
-        end_wind = i.pos + int(seq_width / 2)
+        end_wind   = i.pos + int(seq_width / 2)
         if start_wind <= 0 or end_wind > len(fasta_file[i.Chromosome]) - 1:
-            print("chromosome is {}, position is {} and range is from {} to {}".format(i.Chromosome, i.pos, start_wind, end_wind))
+            print(f"chromosome {i.Chromosome}, position {i.pos} range {start_wind}:{end_wind}")
             continue
         else:
             seq = fasta_file[i.Chromosome][start_wind:end_wind]
-            # Key modification: handle strand!
             strand_val = getattr(i, 'Strand', '+')  # default '+'
             if str(strand_val) in ['-', '-1', -1]:
                 seq = seq.reverse_complement()
             seq_mat[i.Index, :] = np.array(seq)
+
+    # --- probability matrix ---
     seq_df = pd.DataFrame(seq_mat)
     seq_df_base_count = seq_df.apply(lambda x: x.value_counts().reindex(['A','C','G','T'], fill_value=0))
     seq_df_base_prob = seq_df_base_count.apply(lambda x: x/seq_df.shape[0])
-    seq_df_base_prob_AG_top_CT_bot = seq_df_base_prob.copy()
-    if bases == 'AG':
-        seq_df_base_prob_AG_top_CT_bot.loc["C"] *= -1
-        seq_df_base_prob_AG_top_CT_bot.loc["T"] *= -1
-        color_scheme = {'A': 'blue', 'C': 'orange', 'G': 'blue', 'T': 'orange'}
-    elif bases == 'A':
-        seq_df_base_prob_AG_top_CT_bot.loc["G"] = 0
-        seq_df_base_prob_AG_top_CT_bot.loc["C"] = 0
-        seq_df_base_prob_AG_top_CT_bot.loc["T"] *= -1
-        color_scheme = {'A': 'blue', 'C': 'orange', 'G': 'blue', 'T': 'orange'}
-    elif bases == 'G':
-        seq_df_base_prob_AG_top_CT_bot.loc["A"] = 0
-        seq_df_base_prob_AG_top_CT_bot.loc["T"] = 0
-        seq_df_base_prob_AG_top_CT_bot.loc["C"] *= -1
-        color_scheme = {'A': 'blue', 'C': 'orange', 'G': 'blue', 'T': 'orange'}
-    elif bases == 'ACGT':
+    seq_df_base_prob_mod = seq_df_base_prob.copy()
+
+    # --- Colors & flipping for negative ---
+    if plot_negative_axis:
+        if bases == 'AG':
+            seq_df_base_prob_mod.loc["C"] *= -1
+            seq_df_base_prob_mod.loc["T"] *= -1
+            color_scheme = {'A': 'blue', 'C': 'orange', 'G': 'blue', 'T': 'orange'}
+        elif bases == 'A':
+            seq_df_base_prob_mod.loc["G"] = 0
+            seq_df_base_prob_mod.loc["C"] = 0
+            seq_df_base_prob_mod.loc["T"] *= -1
+            color_scheme = {'A': 'blue', 'C': 'orange', 'G': 'blue', 'T': 'orange'}
+        elif bases == 'G':
+            seq_df_base_prob_mod.loc["A"] = 0
+            seq_df_base_prob_mod.loc["T"] = 0
+            seq_df_base_prob_mod.loc["C"] *= -1
+            color_scheme = {'A': 'blue', 'C': 'orange', 'G': 'blue', 'T': 'orange'}
+        elif bases == 'ACGT':
+            color_scheme = {'A': 'blue', 'C': 'green', 'G': 'orange', 'T': 'red'}
+    else:
         color_scheme = {'A': 'blue', 'C': 'green', 'G': 'orange', 'T': 'red'}
-    
-    
+
+    # ticks
+    num_desired_ticks = 9
+    tick_indices = np.linspace(0, seq_width, num_desired_ticks, dtype=int)
+    tick_labels  = np.linspace(-int(seq_width/2), int(seq_width/2), num_desired_ticks, dtype=int)
+
+    # --- Probability logo ---
     prob_logo = None
     if ax1 is not None:
         prob_logo = logomaker.Logo(
-            seq_df_base_prob_AG_top_CT_bot.T,
-            ax=ax1,
-            shade_below=0,
-            fade_below=0,
+            seq_df_base_prob_mod.T, ax=ax1,
+            shade_below=0, fade_below=0,
             color_scheme=color_scheme,
             font_name='Arial Rounded MT Bold'
         )
         prob_logo.style_spines(visible=False)
-        prob_logo.style_spines(spines=['left', 'bottom'], visible=True)
+        prob_logo.style_spines(spines=['left','bottom'], visible=True)
         prob_logo.style_xticks(rotation=0, fmt='%d', anchor=0)
         prob_logo.ax.set_ylabel("Probability", fontsize=label_size)
         prob_logo.ax.yaxis.set_tick_params(pad=5, labelsize=tick_size)
         prob_logo.ax.xaxis.set_tick_params(pad=-1, labelsize=tick_size)
-        prob_logo.ax.set_yticks(np.linspace(-1, 1, 5))
-        prob_logo.ax.set_yticklabels(['%.1f' % x for x in abs(np.linspace(-1, 1, 5))], fontsize=tick_size)
-
-        ## Set x ticks
-        num_desired_ticks = 9
-        tick_indices = np.linspace(0, seq_width, num_desired_ticks, dtype=int)
-        tick_labels = np.linspace(-int(seq_width/2), int(seq_width/2), num_desired_ticks, dtype=int)
         prob_logo.ax.set_xticks(tick_indices)
         prob_logo.ax.set_xticklabels([f'{x}' for x in tick_labels], fontsize=tick_size)
+        if plot_negative_axis:
+            prob_logo.ax.set_yticks(np.linspace(-1,1,5))
+            prob_logo.ax.set_yticklabels([f'{abs(x):.1f}' for x in np.linspace(-1,1,5)], fontsize=tick_size)
+            for i in range(len(prob_logo.glyph_df['T'])):
+                prob_logo.glyph_df['T'][i].c = 'A'
+                prob_logo.glyph_df['C'][i].c = 'G'
+            prob_logo.style_glyphs_below(flip=True, mirror=True)
+        else:
+            prob_logo.ax.set_ylim(0,1)
+            prob_logo.ax.set_yticks(np.linspace(0,1,6))
+            prob_logo.ax.set_yticklabels([f'{x:.1f}' for x in np.linspace(0,1,6)], fontsize=tick_size)
 
+        # --- add highlight box ---
+        if {'start','end'}.issubset(TF_start_pos.columns):
+            box_left, box_right = _compute_relative_box(TF_start_pos, seq_width)
+            rect = patches.Rectangle(
+                (box_left, prob_logo.ax.get_ylim()[0]),
+                (box_right - box_left),
+                prob_logo.ax.get_ylim()[1]-prob_logo.ax.get_ylim()[0],
+                facecolor=box_color, alpha=box_alpha
+            )
+            prob_logo.ax.add_patch(rect)
 
-        for i in range(len(prob_logo.glyph_df['T'])):
-            prob_logo.glyph_df['T'][i].c = 'A'
-            prob_logo.glyph_df['C'][i].c = 'G'
-        prob_logo.style_glyphs_below(flip=True, mirror=True)
-
-    max_information = 4 - 0.25 * np.log2(0.25)
+    # --- Information content logo ---
+    max_information = 4 - 0.25*np.log2(0.25)
     max_info_per_base = max_information - (seq_df_base_prob.apply(lambda x: -x*np.log2(x+1e-9))).sum(axis=0)
     seq_df_base_prob_w_max_info = pd.concat([seq_df_base_prob, pd.DataFrame(max_info_per_base).T], axis=0)
     seq_df_base_information = seq_df_base_prob_w_max_info.apply(lambda x: x*x.iloc[4]).iloc[:4,:]
-    seq_df_base_information_AG_top_CT_bot = seq_df_base_information.copy()
-    if bases == 'AG':
-        seq_df_base_information_AG_top_CT_bot.loc["C"] *= -1
-        seq_df_base_information_AG_top_CT_bot.loc["T"] *= -1
-    elif bases == 'A':
-        seq_df_base_information_AG_top_CT_bot.loc["G"] = 0
-        seq_df_base_information_AG_top_CT_bot.loc["C"] = 0
-        seq_df_base_information_AG_top_CT_bot.loc["T"] *= -1
-    elif bases == 'G':
-        seq_df_base_information_AG_top_CT_bot.loc["A"] = 0
-        seq_df_base_information_AG_top_CT_bot.loc["T"] = 0
-        seq_df_base_information_AG_top_CT_bot.loc["C"] *= -1
+    seq_df_base_information_mod = seq_df_base_information.copy()
+    if plot_negative_axis:
+        if bases == 'AG':
+            seq_df_base_information_mod.loc["C"] *= -1
+            seq_df_base_information_mod.loc["T"] *= -1
+        elif bases == 'A':
+            seq_df_base_information_mod.loc["G"] = 0
+            seq_df_base_information_mod.loc["C"] = 0
+            seq_df_base_information_mod.loc["T"] *= -1
+        elif bases == 'G':
+            seq_df_base_information_mod.loc["A"] = 0
+            seq_df_base_information_mod.loc["T"] = 0
+            seq_df_base_information_mod.loc["C"] *= -1
+
     bit_logo = None
     if ax2 is not None:
         bit_logo = logomaker.Logo(
-            seq_df_base_information_AG_top_CT_bot.T,
-            ax=ax2,
-            shade_below=0,
-            fade_below=0,
+            seq_df_base_information_mod.T, ax=ax2,
+            shade_below=0, fade_below=0,
             color_scheme=color_scheme,
             font_name='Arial Rounded MT Bold'
         )
         bit_logo.style_spines(visible=False)
-        bit_logo.style_spines(spines=['left', 'bottom'], visible=True)
+        bit_logo.style_spines(spines=['left','bottom'], visible=True)
         bit_logo.style_xticks(rotation=0, fmt='%d', anchor=0)
         bit_logo.ax.set_ylabel("Bit", fontsize=label_size)
         bit_logo.ax.yaxis.set_tick_params(pad=5, labelsize=tick_size)
         bit_logo.ax.xaxis.set_tick_params(pad=-1, labelsize=tick_size)
-        bit_logo.ax.set_yticks(np.linspace(-2, 2, 5))
-        bit_logo.ax.set_yticklabels(['%d' % x for x in abs(np.linspace(-2, 2, 5))], fontsize=tick_size)
         bit_logo.ax.set_xticks(tick_indices)
         bit_logo.ax.set_xticklabels([f'{x}' for x in tick_labels], fontsize=tick_size)
-        for i in range(len(bit_logo.glyph_df['T'])):
-            bit_logo.glyph_df['T'][i].c = 'A'
-            bit_logo.glyph_df['C'][i].c = 'G'
-        bit_logo.style_glyphs_below(flip=True, mirror=True)
+        if plot_negative_axis:
+            bit_logo.ax.set_yticks(np.linspace(-2,2,5))
+            bit_logo.ax.set_yticklabels([f'{abs(int(x))}' for x in np.linspace(-2,2,5)], fontsize=tick_size)
+            for i in range(len(bit_logo.glyph_df['T'])):
+                bit_logo.glyph_df['T'][i].c = 'A'
+                bit_logo.glyph_df['C'][i].c = 'G'
+            bit_logo.style_glyphs_below(flip=True, mirror=True)
+        else:
+            ymax = float(seq_df_base_information.max().max()) * 1.1
+            bit_logo.ax.set_ylim(0, ymax)
+            bit_logo.ax.set_yticks(np.linspace(0,np.ceil(ymax),5))
+            bit_logo.ax.set_yticklabels([f'{int(x)}' for x in np.linspace(0,np.ceil(ymax),5)], fontsize=tick_size)
+
+        # --- add highlight box ---
+        if {'start','end'}.issubset(TF_start_pos.columns):
+            box_left, box_right = _compute_relative_box(TF_start_pos, seq_width)
+            rect = patches.Rectangle(
+                (box_left, bit_logo.ax.get_ylim()[0]),
+                (box_right - box_left),
+                bit_logo.ax.get_ylim()[1]-bit_logo.ax.get_ylim()[0],
+                facecolor=box_color, alpha=box_alpha
+            )
+            bit_logo.ax.add_patch(rect)
+
     return seq_df, seq_df_base_prob, prob_logo, bit_logo

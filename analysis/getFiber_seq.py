@@ -36,15 +36,17 @@ def getFiber_seq(modkit_df, tmpDir, info_file, coords, nucleotide, idx = None, t
             g_count_A_watson = info_file.create_dataset(k + '/' + tech + '_count_A_watson', data = np.array(count_A_watson))
             g_count_A_crick = info_file.create_dataset(k + '/' + tech + '_count_A_crick', data = np.array(count_A_crick))
 
-    # Save the data as a numpy file
-    np.save('inputs/fiber_seq_data_count_meth_watson.npy', count_meth_watson)
-    np.save('inputs/fiber_seq_data_count_meth_crick.npy', count_meth_crick)
-    np.save('inputs/fiber_seq_data_count_A_watson.npy', count_A_watson)
-    np.save('inputs/fiber_seq_data_count_A_crick.npy', count_A_crick)
+            # Save the data as a numpy file
+            np.save('inputs/' + k + '_' + tech + '_count_meth_watson.npy', count_meth_watson)
+            np.save('inputs/' + k + '_' + tech + '_count_meth_crick.npy', count_meth_crick)
+            np.save('inputs/' + k + '_' + tech + '_count_A_watson.npy', count_A_watson)
+            np.save('inputs/' + k + '_' + tech + '_count_A_crick.npy', count_A_crick)
 
     return fiber_seq_data_count_meth_watson, fiber_seq_data_count_meth_crick
 
 def getValuesFiber_seqOneFileNucleotide(modkit_df, chrm, minStart, maxEnd, nucleotide):
+
+    minStart = minStart-1 #Convert to 0-based
 
     count_meth_watson = np.zeros(maxEnd - minStart + 1).astype(int)
     count_A_watson = np.zeros(maxEnd - minStart + 1).astype(int)

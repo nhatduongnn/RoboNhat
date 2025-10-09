@@ -1019,34 +1019,34 @@ def compute_Fiber_seq_nucleosome(
 
 
 
-segments = computeLinkers("/home/rapiduser/programs/RoboCOP/analysis/inputs/Chereji_2018_+1_-1_nucs.bed")
+# segments = computeLinkers("/home/rapiduser/programs/RoboCOP/analysis/inputs/Chereji_2018_+1_-1_nucs.bed")
 # segments = pd.DataFrame(segments)
 # segments.columns = ['chr','start','end']
 # # Ensure correct dtypes
 # segments['start'] = segments['start'].astype(int)
 # segments['end']   = segments['end'].astype(int)
 
-modified_bases_df = pd.read_csv("/home/rapiduser/projects/Fiber_seq/03202025_barcode01_sup_model_sorted_pileup_all_chr", sep='\t', header=None)
-split_columns = modified_bases_df[9].str.split(' ', expand=True)
-split_columns.columns = [i for i in range(9, 9 + split_columns.shape[1])]
-modified_bases_df = pd.concat([modified_bases_df.drop(columns=[9]), split_columns], axis=1)
-modified_bases_df[11] = modified_bases_df[11].astype(int)
-modified_bases_df[9] = modified_bases_df[9].astype(int)
+# modified_bases_df = pd.read_csv("/home/rapiduser/projects/Fiber_seq/03202025_barcode01_sup_model_sorted_pileup_all_chr", sep='\t', header=None)
+# split_columns = modified_bases_df[9].str.split(' ', expand=True)
+# split_columns.columns = [i for i in range(9, 9 + split_columns.shape[1])]
+# modified_bases_df = pd.concat([modified_bases_df.drop(columns=[9]), split_columns], axis=1)
+# modified_bases_df[11] = modified_bases_df[11].astype(int)
+# modified_bases_df[9] = modified_bases_df[9].astype(int)
 
 
 ######### nucleosome params #########
 
-nuc_params = compute_Fiber_seq_nucleosome(
-    modified_bases_df,
-    "/home/rapiduser/programs/RoboCOP/analysis/inputs/Chereji_2018_+1_-1_nucs.bed",
-    dist="binomial",
-    successes_col=11,
-    trials_col=9
-)
+# nuc_params = compute_Fiber_seq_nucleosome(
+#     modified_bases_df,
+#     "/home/rapiduser/programs/RoboCOP/analysis/inputs/Chereji_2018_+1_-1_nucs.bed",
+#     dist="binomial",
+#     successes_col=11,
+#     trials_col=9
+# )
 
-# Save the dictionary to a file
-with open('inputs/nucleosome_params.pkl', 'wb') as f:
-    pickle.dump(nuc_params, f)
+# # Save the dictionary to a file
+# with open('inputs/nucleosome_params.pkl', 'wb') as f:
+#     pickle.dump(nuc_params, f)
 
 
 ######### background params #########
@@ -1069,22 +1069,22 @@ with open('inputs/nucleosome_params.pkl', 'wb') as f:
 
 ######### TF params #########
 
-# a = compute_Fiber_seq_TFPhisMus("Fiber_seq",\
-#                           "/home/rapiduser/projects/DMS-seq/DM1664/DM1664_trim_3prime_18bp_remaining_name_change_sorted.bam",\
-#                           "/home/rapiduser/projects/Fiber_seq/03202025_barcode01_sup_model_sorted_pileup_all_chr",\
-#                           "/home/rapiduser/programs/RoboCOP/analysis/inputs/rossi_peak_w_strand_conformed_to_PWM_abf1_reb1_aft2_azf1.bed",\
-#                             "/home/rapiduser/programs/RoboCOP/analysis/robocop_train/tmpDir",\
-#                             (0, 80),\
-#                                 None,\
-#                                     0,\
-#                                         dist = "binomial")
+a = compute_Fiber_seq_TFPhisMus("Fiber_seq",\
+                          "/home/rapiduser/projects/DMS-seq/DM1664/DM1664_trim_3prime_18bp_remaining_name_change_sorted.bam",\
+                          "/home/rapiduser/projects/Fiber_seq/03202025_barcode01_sup_model_sorted_pileup_all_chr",\
+                          "/home/rapiduser/programs/RoboCOP/analysis/inputs/rossi_peak_w_strand_conformed_to_PWM_abf1_reb1_atf2_azf1_1000_peakVal.bed",\
+                            "/home/rapiduser/programs/RoboCOP/analysis/robocop_train/tmpDir",\
+                            (0, 80),\
+                                None,\
+                                    0,\
+                                        dist = "binomial")
 
-# # Okay maybe this is it
-# print(a)
-# abf1_reb1_params = a
+# Okay maybe this is it
+print(a)
+abf1_reb1_params = a
 
-# # To load the dictionary later, you can use:
+# To load the dictionary later, you can use:
 
-# # Save the dictionary to a file
-# with open('inputs/abf1_reb1_params.pkl', 'wb') as f:
-#     pickle.dump(abf1_reb1_params, f)
+# Save the dictionary to a file
+with open('inputs/abf1_reb1_params.pkl', 'wb') as f:
+    pickle.dump(abf1_reb1_params, f)

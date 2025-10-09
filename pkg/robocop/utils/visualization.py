@@ -108,9 +108,9 @@ def plot_occupancy_profile(ax, op, chromo, coordinate_start, dbf_color_map, padd
         leg = ax.legend(loc='lower left', ncol = 12, bbox_to_anchor = (0., 1.),
                         borderaxespad=0, frameon=False, framealpha=0)
         
-        if leg != None:
-            for legobj in leg.legendHandles:
-                legobj.set_linewidth(10.0)
+        # if leg != None:
+        #     for legobj in leg.legendHandles:
+        #         legobj.set_linewidth(10.0)
 
     #set the y axis bounds so only the 0-1.0 part is shown
     ax.spines['left'].set_bounds(0, 1.0)

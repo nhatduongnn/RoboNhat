@@ -510,12 +510,16 @@ def update_data_emission_matrix_using_fiber_seq_counts_Bionomial(
     
     # Load fiber-seq input
     if FiberType == 'watson':
-        fiber_seq_meth_watson = np.load("inputs/fiber_seq_data_count_meth_watson.npy")
-        fiber_seq_A_watson = np.load("inputs/fiber_seq_data_count_A_watson.npy")
+        # fiber_seq_meth_watson = info_file[k + 'Fiber_seq' + '_count_meth_watson'][:]
+        # fiber_seq_A_watson = info_file[k + 'Fiber_seq' + '_count_A_watson'][:]
+        fiber_seq_meth_watson = np.load('inputs/segment_' + str(segment) + '_' + 'Fiber_seq' + '_count_meth_watson.npy')
+        fiber_seq_A_watson = np.load('inputs/segment_' + str(segment) + '_' + 'Fiber_seq' + '_count_A_watson.npy')
         strand = 'watson_signal'
     else:
-        fiber_seq_meth_crick = np.load("inputs/fiber_seq_data_count_meth_crick.npy")
-        fiber_seq_A_crick = np.load("inputs/fiber_seq_data_count_A_crick.npy")
+        # fiber_seq_meth_crick = info_file[k + 'Fiber_seq' + '_count_meth_crick'][:]
+        # fiber_seq_A_crick = info_file[k + 'Fiber_seq' + '_count_A_crick'][:]
+        fiber_seq_meth_crick = np.load('inputs/segment_' + str(segment) + '_' + 'Fiber_seq' + '_count_meth_crick.npy')
+        fiber_seq_A_crick = np.load('inputs/segment_' + str(segment) + '_' + 'Fiber_seq' + '_count_A_crick.npy')
         strand = 'crick_signal'
 
     # Load parameters (now contains probabilities 'p')
@@ -535,14 +539,16 @@ def update_data_emission_matrix_using_fiber_seq_counts_Bionomial(
     # Default all TFs → combined low count parameters
     ps[:] = bg_params['p'][strand]['A']
 
-    tf_name_trimmed = [tf.split('_')[0].upper() for tf in dshared['tfs']]
+    tf_name_trimmed = [tf.split('_')[0].lower() for tf in dshared['tfs']]
     for i in range(dshared['n_tfs']):
         tf_start = tf_starts[i]
         tf_end = tf_start + 2 * tf_lens[i]
         if tf_name_trimmed[i] in loaded_params['p']:
             p_forward = loaded_params['p'][tf_name_trimmed[i]][strand]['A']
             p_reverse = loaded_params['p'][tf_name_trimmed[i]][strand]['A'][::-1]
-            ps[tf_start:tf_end] = np.concatenate((p_reverse, p_forward))
+            ps[tf_start:tf_end] = np.concatenate((p_forward,p_reverse))
+        else:
+            ps[tf_start:tf_end] = loaded_params['p']['combined_low_count'][strand]['A']*0.1
 
     nuc_p_params = nucleosome_params['p'][strand]['A']
     if dshared['nuc_present']:
@@ -557,14 +563,14 @@ def update_data_emission_matrix_using_fiber_seq_counts_Bionomial(
     for t in range(dshared['timepoints']):
         if FiberType == 'watson':
             update_data_emission_matrix_using_binomial_fiber_seq(
-                segment, dshared, ps, fiber_seq_meth_watson, fiber_seq_A_watson, 5, t)
+                segment, dshared, ps, fiber_seq_meth_watson, fiber_seq_A_watson, 5, t, FiberType)
         elif FiberType == 'crick':
             update_data_emission_matrix_using_binomial_fiber_seq(
-                segment, dshared, ps, fiber_seq_meth_crick, fiber_seq_A_crick, 6, t)
+                segment, dshared, ps, fiber_seq_meth_crick, fiber_seq_A_crick, 6, t, FiberType)
 
 
 def update_data_emission_matrix_using_binomial_fiber_seq(
-        segment, dshared, ps, data, data_trials, index, timepoint):
+        segment, dshared, ps, data, data_trials, index, timepoint, strand):
     """
     Update the data emission matrix based on the Binomial distribution.
     ps: array of success probabilities for each non-silent state
@@ -575,9 +581,10 @@ def update_data_emission_matrix_using_binomial_fiber_seq(
     n_obs = info_file['segment_' + str(segment)].attrs['n_obs']
     nucleotides = info_file['segment_' + str(segment) + '/nucleotides'][:]
     dictionary = {}  # cache probabilities to avoid recomputation
-    
+    nucleotide_ref = 0 if strand == 'watson' else 3
+
     for i in range(n_obs):
-        if nucleotides[i] == 0:  # only proceed if nucleotide is 'A'
+        if nucleotides[i] == nucleotide_ref:  # only proceed if nucleotide is 'A'
             k = data[i]   # observed successes
             n = data_trials[i]      # number of trials
             for j in range(dshared['silent_states_begin']):
@@ -588,10 +595,10 @@ def update_data_emission_matrix_using_binomial_fiber_seq(
                 if k not in dictionary[(p_j, n)]:
                     dictionary[(p_j, n)][k] = binom.pmf(k, n, p_j)
                 # Multiply emission matrix
-                data_emission_matrix[index][i][j] *= dictionary[(p_j, n)][k]
+                data_emission_matrix[index, i, j] *= dictionary[(p_j, n)][k]
         else:
             # If nucleotide is not 'A', set emission probs to 0
-            data_emission_matrix[index][i, :dshared['silent_states_begin']] = 0
+            data_emission_matrix[index, i, :dshared['silent_states_begin']] = 0
     
     ### Hard code to only keep emission for only ABF1, delete later!!!
     emat = info_file['segment_' + str(segment) + '/emission']

@@ -51,8 +51,8 @@ def calc_posterior(allinfofiles, dshared, coords, chrm, start, end):
 
     if counts[counts > 0].shape != counts.shape:
         print("ERROR: Invalid coordinates " + chrm + ":" + str(start) + "-" + str(end))
-        print("Valid coordinates can be found at " + outDir + "coords.tsv")
-        exit(0)
+        print("Valid coordinates can be found at coords.tsv")
+        sys.exit(0)
     ptable = ptable / counts[:, np.newaxis]
     longCounts = longCounts / counts
     shortCounts = shortCounts / counts
@@ -156,6 +156,8 @@ def plotOutput(outDir, config, dbf_color_map, optable, chrm, start, end, tech, l
 
     if isgtf: plotRegion(gtffile, chrm, start, end, ax[0])
 
+    ax[1 + isgtf].set_visible(False)
+
     if save:
         os.makedirs(outDir + 'figures/', exist_ok = True)
         plt.savefig(outDir + "figures/robocop_output_" + chrm + "_" + str(start) + "_" + str(end) + ".png")
@@ -194,7 +196,7 @@ if __name__ == '__main__':
 
     if len(sys.argv) != 5:
         print("Usage: python plotRoboCOP.py outDir chr start end")
-        exit(0)
+        sys.exit(0)
 
     outDir = (sys.argv)[1]
     chrm = (sys.argv)[2]

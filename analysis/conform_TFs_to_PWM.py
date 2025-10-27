@@ -150,7 +150,8 @@ def best_match_for_tf(row, motifDict, genome_fasta):
             "TF": tf,
             "score": best_score,
             "best_seq": best_seq,
-            "peakVal" : row['peakVal']
+            "peakVal" : row['peakVal'],
+            "motif": row['motif']
         }
 
 # Example driver

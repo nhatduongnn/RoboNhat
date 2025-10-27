@@ -107,7 +107,8 @@ def plot_occupancy_profile(ax, op, chromo, coordinate_start, dbf_color_map, padd
         # legend
         leg = ax.legend(loc='lower left', ncol = 12, bbox_to_anchor = (0., 1.),
                         borderaxespad=0, frameon=False, framealpha=0)
-        
+        # for legobj in ax.get_legend_handles_labels():
+        #     legobj.set_linewidth(10.0)
         # if leg != None:
         #     for legobj in leg.legendHandles:
         #         legobj.set_linewidth(10.0)

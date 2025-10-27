@@ -23,6 +23,7 @@ pkg/core
 */gccCompile
 */librobocop.so
 */.ipynb_checkpoints*
+analysis/example_robocop_test.ipynb
 analysis/inputs/03202025_barcode01_sup_model_sorted_pileup_all_chr
 analysis/robocop_train/tmpDir/info.h5
 analysis/robocop_train/HMMconfig*.pkl

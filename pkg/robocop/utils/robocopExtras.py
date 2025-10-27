@@ -35,10 +35,11 @@ def update_transition_probs(dshared, segments, tmpDir, threshold):
         k = 'segment_' + str(t) + '/'
         
         # ignore segments giving numerical issues
-        p_table = info_file[k + 'posterior'][:] # x['posterior_table']
+        p_table = robocop.get_sparse_todense(info_file, k+'posterior')
+        # p_table = info_file[k + 'posterior'][:] # x['posterior_table']
         if np.isinf(np.sum(p_table)): continue
         if np.sum(p_table) > 1e10: continue
-        print("Ptable sum:", np.sum(p_table), t)
+        # print("Ptable sum:", np.sum(p_table), t)
         dbf_posterior_start_probs_same_update[0] += p_table[:,0].sum()
         # tfs
         for i in range(dshared['n_tfs']):
@@ -81,8 +82,8 @@ def updateMNaseEMMatNB(args):
 
 # Posterior decoding
 def setValuesPosterior(args):
-    (t, dshared, tf_prob, background_prob, nucleosome_prob, tmpDir) = args
-    robocop.posterior_forward_backward(t, dshared)
+    (d, t, dshared, tf_prob, background_prob, nucleosome_prob, tmpDir) = args
+    robocop.posterior_forward_backward(d, t, dshared)
 
 # Compute log likelihood
 def getLogLikelihood(segments, dshared):

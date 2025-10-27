@@ -11,19 +11,22 @@ import pandas
 from scipy import sparse
 
 def update_sparse_posterior(f, k, v):
-    v = np.array(v)
-    v[v < 1e-4] = 0
-    v_sparse = sparse.csr_matrix(v)
-    g = f[k+'/data'] # f.create_group(k)
-    g[...] = v_sparse.data
-    g = f[k+'/indices'] # f.create_group(k)
-    g[...] = v_sparse.indices
-    g = f[k+'/indptr'] # f.create_group(k)
-    g[...] = v_sparse.indptr
-    # g.create_dataset('data', data=v_sparse.data)
-    # g.create_dataset('indices', data=v_sparse.indices)
-    # g.create_dataset('indptr', data=v_sparse.indptr)
-    g.attrs['shape'] = v_sparse.shape
+    # delete and recreate
+    del f[k]
+    save_sparse_posterior(f, k, v)
+    # v = np.array(v)
+    # v[v < 1e-4] = 0
+    # v_sparse = sparse.csr_matrix(v)
+    # g = f[k+'/data'] # f.create_group(k)
+    # g[...] = v_sparse.data
+    # g = f[k+'/indices'] # f.create_group(k)
+    # g[...] = v_sparse.indices
+    # g = f[k+'/indptr'] # f.create_group(k)
+    # g[...] = v_sparse.indptr
+    # # g.create_dataset('data', data=v_sparse.data)
+    # # g.create_dataset('indices', data=v_sparse.indices)
+    # # g.create_dataset('indptr', data=v_sparse.indptr)
+    # g.attrs['shape'] = v_sparse.shape
 
 def save_sparse_posterior(f, k, v):
     v = np.array(v)

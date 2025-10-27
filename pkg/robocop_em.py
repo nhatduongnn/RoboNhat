@@ -20,17 +20,21 @@ random.seed(9)
 def createInstances(tf_prob, dbf_conc, coords, pwm, cshared, tmpDir, info_file, fasta_file, nucleosome_file, nucleotide_sequence, mnaseParams, tech):
     segments = len(coords)
     dshared = {} 
+    d_segments = {}
     dshared["robocopC"] = cshared 
     robocop.createSharedDictionary(dshared, fasta_file, nucleosome_file, tf_prob, dbf_conc['background'], dbf_conc['nucleosome'], pwm, tmpDir, info_file, nucleotide_sequence)
     for t in range(segments):
-        createInstance((t, dshared, coords.iloc[t]['chr'], coords.iloc[t]['start'], coords.iloc[t]['end']))
+        d_segments[t] = createInstance((t, dshared, coords.iloc[t]['chr'], coords.iloc[t]['start'], coords.iloc[t]['end']))
+        # d = createInstance((t, dshared, coords.iloc[t]['chr'], coords.iloc[t]['start'], coords.iloc[t]['end']))
     if mnaseParams != None:
         for s in range(segments):
-            updateMNaseEMMatNB((s, dshared, mnaseParams, tech))
+            updateMNaseEMMatNB((d_segments[s], s, dshared, mnaseParams, tech))
+            # updateMNaseEMMatNB((d, s, dshared, mnaseParams, tech))
     for t in range(segments):
-        posterior_forward_backward_wrapper((t, dshared))
+        posterior_forward_backward_wrapper((d_segments[t], t, dshared))
+        # posterior_forward_backward_wrapper((d, t, dshared))
     gc.collect()
-    return dshared
+    return dshared, d_segments
     
 def runROBOCOP_EM(coordFile, config, outDir, tmpDir, info_file_name, mnaseFile, dnaseFiles = ""):
 
@@ -90,7 +94,7 @@ def runROBOCOP_EM(coordFile, config, outDir, tmpDir, info_file_name, mnaseFile, 
         mnaseParams = None
     
     # create shared dictionary for all segments and build HMM transition matrix
-    dshared = createInstances(tf_prob, dbf_conc, coords, pwm, cshared, tmpDir, info_file, config.get("main", "nucFile"), config.get("main", "nucleosomeFile"), nucleotide_sequence, mnaseParams, tech)
+    dshared, d_segments = createInstances(tf_prob, dbf_conc, coords, pwm, cshared, tmpDir, info_file, config.get("main", "nucFile"), config.get("main", "nucleosomeFile"), nucleotide_sequence, mnaseParams, tech)
 
     fLike = open(outDir + '/likelihood.txt', 'w')
     likelihood = getLogLikelihood(segments, dshared)
@@ -124,7 +128,8 @@ def runROBOCOP_EM(coordFile, config, outDir, tmpDir, info_file_name, mnaseFile, 
 
         # posterior decoding with updated transition probabilities
         for t in range(segments):
-            setValuesPosterior((t, dshared, tf_prob, background_prob, nucleosome_prob, tmpDir))
+            setValuesPosterior((d_segments[t], t, dshared, tf_prob, background_prob, nucleosome_prob, tmpDir))
+            # setValuesPosterior((t, dshared, tf_prob, background_prob, nucleosome_prob, tmpDir))
 
         likelihood = getLogLikelihood(segments, dshared)
         fLike = open(outDir + '/likelihood.txt', 'a')

@@ -449,7 +449,8 @@ def set_transition(d, tf_prob, background_prob, nucleosome_prob):
     state to nucleosome start state
     """
     for t in range(d['timepoints']):
-        if len(tf_prob) == 0: tf_prob = d['tf_prob']
+        # if len(tf_prob) == 0: tf_prob = d['tf_prob']
+        if tf_prob == []: tf_prob = d['tf_prob']
         else:
             d['tf_prob'] = tf_prob
             d['background_prob'] = background_prob
@@ -511,7 +512,7 @@ def set_end_probs(d):
             end_probs[d['nuc_start'] + d['nuc_len'] - 1] = 1.0
         d['end_probs'] = end_probs
 
-def posterior_forward_backward_loop(dshared, segment):
+def posterior_forward_backward_loop(d, dshared, segment):
     """
     Forward backward and posterior decoding.
     """

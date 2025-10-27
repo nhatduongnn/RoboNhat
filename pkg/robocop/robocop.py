@@ -430,8 +430,6 @@ def update_data_emission_matrix_using_negative_binomial_fiber_seq(
     # emat = info_file['segment_' + str(segment) + '/emission']
     # emat[...] = data_emission_matrix
     d['emission'] = data_emission_matrix
-    emat = info_file['segment_' + str(segment) + '/emission']
-    emat[...] = data_emission_matrix
 
 
 def update_data_emission_matrix_using_negative_binomial_fiber_seq(

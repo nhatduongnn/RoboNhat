@@ -3,6 +3,7 @@ import pandas as pd
 from Bio import SeqIO
 from Bio.Seq import Seq
 import sys
+from collections import defaultdict
 sys.path.insert(0, '/home/rapiduser/programs/RoboCOP/pkg/')
 import robocop.utils.parameterize as parameterize
 
@@ -101,58 +102,62 @@ def best_match_for_tf(row, motifDict, genome_fasta):
 
     chrom = convert_chromosome(chrom, "chrRoman")
 
-    translate_motif_name = {name.split('_', 1)[0].lower(): name for name in motifDict.keys()}
+    # build mapping: tf_name_lower -> list of motif names
+    translate_motif_name = defaultdict(list)
+    for name in motifDict.keys():
+        tf_key = name.split('_', 1)[0].lower()
+        translate_motif_name[tf_key].append(name)
+
     # midpoint
     midpoint = (start + end) // 2
-    if tf in translate_motif_name.keys():
+    if tf.lower() in translate_motif_name:
+        best_overall = None
+        for motif_name in translate_motif_name[tf.lower()]:
+            pwm = motifDict[motif_name][:4]
+            L = pwm.shape[1]
+            
+            # define search region
+            search_start = max(0, midpoint - L)
+            search_end = midpoint + L
+            seq_record = genome_fasta[chrom]
+            search_seq = str(seq_record.seq[search_start:search_end])
+            
+            best_score = -np.inf
+            best_pos, best_strand, best_seq = None, None, None
+            
+            for i in range(0, len(search_seq) - L + 1):
+                window_seq = search_seq[i:i+L]
+                score_w = score_sequence_with_pwm(window_seq, pwm)
+                if score_w > best_score:
+                    best_score = score_w
+                    best_pos = search_start + i
+                    best_strand = "+"
+                    best_seq = window_seq
+                rc_seq = str(Seq(window_seq).reverse_complement())
+                score_c = score_sequence_with_pwm(rc_seq, pwm)
+                if score_c > best_score:
+                    best_score = score_c
+                    best_pos = search_start + i
+                    best_strand = "-"
+                    best_seq = rc_seq
+            
+            res = {
+                "chr": chrom,
+                "start": best_pos,
+                "end": best_pos + L,
+                "strand": best_strand,
+                "agree": 1 if best_strand == row['strand'] else 0,
+                "TF": motif_name,
+                "score": best_score,
+                "best_seq": best_seq,
+                "peakVal": row['peakVal']
+            }
+            
+            # Keep track of the overall best across Rap1 variants
+            if best_overall is None or res["score"] > best_overall["score"]:
+                best_overall = res
 
-        pwm = motifDict[translate_motif_name[tf]][:4]   # take A,C,G,T rows only
-        L = pwm.shape[1]
-
-        # define search region
-        search_start = max(0, midpoint - L)
-        search_end = midpoint + L
-
-        # extract sequence
-        seq_record = genome_fasta[chrom]
-        search_seq = str(seq_record.seq[search_start:search_end])
-
-        best_score = -np.inf
-        best_pos, best_strand, best_seq = None, None, None
-
-        # sliding window
-        for i in range(0, len(search_seq) - L + 1):
-            window_seq = search_seq[i:i+L]
-
-            # Watson strand
-            score_w = score_sequence_with_pwm(window_seq, pwm)
-            if score_w > best_score:
-                best_score = score_w
-                best_pos = search_start + i
-                best_strand = "+"
-                best_seq = window_seq
-
-            # Crick strand (reverse complement)
-            rc_seq = str(Seq(window_seq).reverse_complement())
-            score_c = score_sequence_with_pwm(rc_seq, pwm)
-            if score_c > best_score:
-                best_score = score_c
-                best_pos = search_start + i
-                best_strand = "-"
-                best_seq = rc_seq
-
-        return {
-            "chr": chrom,
-            "start": best_pos,
-            "end": best_pos + L,
-            "strand": best_strand,
-            "agree": 1 if best_strand == row['strand'] else 0,
-            "TF": tf,
-            "score": best_score,
-            "best_seq": best_seq,
-            "peakVal" : row['peakVal'],
-            "motif": row['motif']
-        }
+        return best_overall
 
 # Example driver
 def scan_bed_with_pwms(bed_file, pwm_file, genome_fasta_file):

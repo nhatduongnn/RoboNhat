@@ -46,6 +46,23 @@ def runROBOCOP_EM(coordFile, config, outDir, tmpDir, info_file_name, mnaseFile, 
     mnaseFiles = mnaseFile 
     cshared = config.get("main", "cshared")
     tech = config.get("main", "tech")
+    try:
+        tech2 = config.get("main", "tech2")
+    except:
+        tech2 = None
+
+    if tech2 == 'Fiber':
+        modkitFile = config.get("main", "modkitFile")
+        # Load Modkit file only once outside loop
+        modified_bases_df = pandas.read_csv(modkitFile, sep='\t', header=None)
+        # Split the 9th column into multiple columns (if following previous code pattern)
+        split_columns = modified_bases_df[9].str.split(' ', expand=True)
+        split_columns.columns = [i for i in range(9,9+split_columns.shape[1])]
+        modified_bases_df = pandas.concat([modified_bases_df.drop(columns=[9]), split_columns], axis=1)
+        avg_successes = modified_bases_df[11].astype('int').mean()
+        avg_trials = modified_bases_df[9].astype('int').mean()
+        meth_nucleotide = config.get("main", "meth_nucleotide")
+
     # chromosome segments in pandas data frame
     coords = pandas.read_csv(coordFile, sep = "\t")
 
@@ -68,7 +85,9 @@ def runROBOCOP_EM(coordFile, config, outDir, tmpDir, info_file_name, mnaseFile, 
     # mnase_data_long, mnase_data_short = getReads.getMNaseSmoothed(tmpDir, coords, fragRange, tech = tech)
 
     mnase_data_long, mnase_data_short = getReads.getMNase(mnaseFiles, tmpDir, info_file, coords, fragRange, tech = tech)
-    
+    fiber_seq_data_count_meth_watson, fiber_seq_data_count_meth_crick = getReads.getFiber_seq(modified_bases_df, tmpDir, info_file, coords, meth_nucleotide, 0, 0, tech = tech2)
+
+
     # make t copies of each tf_prob for every timepoint -- only 1 timepoint
     timepoints = len(coords)
     segments = len(coords)
@@ -100,7 +119,7 @@ def runROBOCOP_EM(coordFile, config, outDir, tmpDir, info_file_name, mnaseFile, 
     likelihood = getLogLikelihood(segments, dshared)
     fLike.write(str(likelihood) + '\n')
     fLike.close()
-    iterations = 10
+    iterations = 0
     countMNase = 0
 
     print("Writing MNase params")

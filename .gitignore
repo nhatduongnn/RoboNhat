@@ -30,3 +30,6 @@ analysis/robocop_train/HMMconfig*.pkl
 analysis/robocop_all_subset/tmpDir/*.h5
 analysis/robocop_all/tmpDir/info.h5
 analysis/robocop_all_abf1/tmpDir/info.h5
+analysis/robocop_all*/
+analysis/robocop_train*/
+analysis/only_fiber_f_b_ptable.npz

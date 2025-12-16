@@ -36,6 +36,23 @@ def runROBOCOP_NO_EM(coords, config, outDir, tmpDir, info_file_name, trainOutDir
     tech = config.get("main", "tech")
     cshared = config.get("main", "cshared")
 
+    try:
+        tech2 = config.get("main", "tech2")
+    except:
+        tech2 = None
+
+    if tech2 == 'Fiber':
+        modkitFile = config.get("main", "modkitFile")
+        # Load Modkit file only once outside loop
+        modified_bases_df = pandas.read_csv(modkitFile, sep='\t', header=None)
+        # Split the 9th column into multiple columns (if following previous code pattern)
+        split_columns = modified_bases_df[9].str.split(' ', expand=True)
+        split_columns.columns = [i for i in range(9,9+split_columns.shape[1])]
+        modified_bases_df = pandas.concat([modified_bases_df.drop(columns=[9]), split_columns], axis=1)
+        avg_successes = modified_bases_df[11].astype('int').mean()
+        avg_trials = modified_bases_df[9].astype('int').mean()
+        meth_nucleotide = config.get("main", "meth_nucleotide")
+
     # get info from learned model
     cfg = pickle.load(open(trainOutDir + "/HMMconfig.pkl", "rb"), encoding = 'latin1')
     j = 0
@@ -51,6 +68,8 @@ def runROBOCOP_NO_EM(coords, config, outDir, tmpDir, info_file_name, trainOutDir
     nucleotide_sequence = getReads.getNucSequence(nucFile, tmpDir, info_file, coords)
     # read MNase-seq midpoint counts of long and short fragments
     mnase_data_long, mnase_data_short = getReads.getMNase(mnaseFiles, tmpDir, info_file, coords, fragRange, tech = tech)
+    fiber_seq_data_count_meth_watson, fiber_seq_data_count_meth_crick = getReads.getFiber_seq(modified_bases_df, tmpDir, info_file, coords, meth_nucleotide, 0, 0, tech = tech2)
+
 
     # make t copies of each tf_prob for every timepoint -- 1 timepoint
     timepoints = 1
@@ -69,6 +88,21 @@ def runROBOCOP_NO_EM(coords, config, outDir, tmpDir, info_file_name, trainOutDir
     
     dshared = cfg
     dshared['info_file'] = info_file
+
+
+    transition_mat = dshared['transition_matrix']
+    print('before changes')
+    print('nuc transition is {}'.format(transition_mat[3330,2779+20]))
+    print('unknown TF transition is {}'.format(transition_mat[3330,-1]))
+    print('bg transition is {}'.format(transition_mat[3330,0]))
+    # # Nucs
+    # transition_mat[3330,2779+20] = transition_mat[3330,2779+20] + 0.161
+    # # Unknown
+    # transition_mat[3330,-1] = transition_mat[3330,-1] - 0.161
+    # # Bg
+    # transition_mat[3330,0] = transition_mat[3330,0] - 0
+    dshared['transition_matrix'] = transition_mat
+    print('done making changes')
 
     for idx, r in coords.iterrows():
         print("Segment:", idx)

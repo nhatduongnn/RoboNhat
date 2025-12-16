@@ -63,6 +63,22 @@ def compute_Fiber_seq_TFPhisMus(
         split_columns = modified_bases_df[9].str.split(' ', expand=True)
         split_columns.columns = [i for i in range(9, 9 + split_columns.shape[1])]
         modified_bases_df = pd.concat([modified_bases_df.drop(columns=[9]), split_columns], axis=1)
+        avg_successes = modified_bases_df[11].astype('int').mean()
+        avg_trials = modified_bases_df[9].astype('int').mean()
+        # First boxplot
+        plt.figure()
+        plt.boxplot(modified_bases_df[11].astype(int))
+        plt.ylim(0, 2)
+        plt.title("Genome successes (A) average is {}".format(avg_successes))
+
+        # Second boxplot
+        plt.figure()
+        plt.boxplot(modified_bases_df[9].astype(int))
+        plt.ylim(0, 20)
+        plt.title("Genome trials (A) average is {}".format(avg_trials))
+
+        # Show both figures
+        plt.show()
 
     for tf_name in ind_tfs:
         if tech != "Fiber_seq":
@@ -116,12 +132,50 @@ def compute_Fiber_seq_TFPhisMus(
                 plot_mu_phi_heatmaps(params_all['mu'][tf_name]['crick_signal'], params_all['phi'][tf_name]['crick_signal'], strand_label="Crick", tf_name=tf_name)
             elif dist == "binomial":
                 watson_counts = compute_individual_Fiber_seq_TF_binom(
-                    modified_bases_df, tfs, tf_name, '+', fasta_file, offset, successes_col=successes_col, trials_col=trials_col
+                    modified_bases_df, tfs, tf_name, '+', fasta_file, 0, 0, offset, successes_col=successes_col, trials_col=trials_col
                 )
                 crick_counts = compute_individual_Fiber_seq_TF_binom(
-                    modified_bases_df, tfs, tf_name, '-', fasta_file, offset, successes_col=successes_col, trials_col=trials_col
+                    modified_bases_df, tfs, tf_name, '-', fasta_file, 0, 0, offset, successes_col=successes_col, trials_col=trials_col
                 )
-                combined_counts = combine_motif_counts_binom(watson_counts, crick_counts)
+                combined_counts = combine_motif_counts_binom(watson_counts, crick_counts, 3, 58)
+                # Example placeholders -- replace these with your actual data
+                watson_successes = combined_counts['watson_signal']['successes']['A']
+                watson_trials    = combined_counts['watson_signal']['trials']['A']
+                crick_successes  = combined_counts['crick_signal']['successes']['A']
+                crick_trials     = combined_counts['crick_signal']['trials']['A']
+
+                datasets = {
+                    'Watson - Successes': watson_successes,
+                    'Watson - Trials':    watson_trials,
+                    'Crick - Successes':  crick_successes,
+                    'Crick - Trials':     crick_trials
+                }
+
+                for title, data in datasets.items():
+                    # Compute means per column
+                    col_means = np.mean(data, axis=0)
+
+                    # Make a boxplot
+                    plt.figure(figsize=(10, 6))
+                    bp = plt.boxplot(data, showfliers=False)
+                    plt.xlabel('Column index')
+                    plt.ylabel('Value')
+
+                    # Add shape info to title
+                    plt.title(f'{title} — shape {data.shape}')
+
+                    # Annotate each box with the mean value
+                    for i, mean in enumerate(col_means, start=1):
+                        plt.text(
+                            i, mean,                # x, y location
+                            f'{mean:.2f}',          # formatted text label
+                            ha='center', va='bottom',
+                            fontsize=8, color='red'
+                        )
+
+                    plt.tight_layout()
+                    plt.show()
+
                 if combined_counts['num_sites'] == 0:
                     params = create_default_params_binomial()
                 else:
@@ -185,12 +239,25 @@ def compute_Fiber_seq_TFPhisMus(
             elif dist == "binomial":
                 # Use DF already loaded for Fiber_seq binomial combined path
                 watson_counts = compute_combined_Fiber_seq_TF_binom(
-                    modified_bases_df, tfs, combined_tfs, '+', fasta_file, offset, successes_col=successes_col, trials_col=trials_col
+                    modified_bases_df, tfs, combined_tfs, '+', fasta_file, avg_successes, avg_trials, offset, successes_col=successes_col, trials_col=trials_col
                 )
                 crick_counts = compute_combined_Fiber_seq_TF_binom(
-                    modified_bases_df, tfs, combined_tfs, '-', fasta_file, offset, successes_col=successes_col, trials_col=trials_col
+                    modified_bases_df, tfs, combined_tfs, '-', fasta_file, avg_successes, avg_trials, offset, successes_col=successes_col, trials_col=trials_col
                 )
-                combined_counts = combine_motif_counts_binom(watson_counts, crick_counts)
+                combined_counts = combine_motif_counts_binom(watson_counts, crick_counts, 3, 58)
+                ratio_watson = combined_counts['watson_signal']['successes']['A'].flatten()/combined_counts['watson_signal']['trials']['A'].flatten()
+                ratio_crick = combined_counts['crick_signal']['successes']['A'].flatten()/combined_counts['crick_signal']['trials']['A'].flatten()
+                ratio_watson[np.isnan(ratio_watson)] = 1e-10
+                ratio_crick[np.isnan(ratio_crick)] = 1e-10
+                x = np.arange(len(ratio_watson))  # x positions for bars
+
+                plt.bar(x, ratio_watson, width=0.4, label='Watson', alpha=0.7)
+                plt.bar(x + 0.4, ratio_crick, width=0.4, label='Crick', alpha=0.7)  # side-by-side bars
+
+                plt.xlabel('Index')
+                plt.ylabel('Ratio')
+                plt.legend()
+                plt.show()
                 if combined_counts['num_sites'] == 0:
                     params = create_default_params_binomial()
                 else:
@@ -378,9 +445,11 @@ def compute_individual_Fiber_seq_TF_binom(
     tf_name,
     motif_strand,
     fasta_file,
+    pseudo_successes,
+    pseudo_trials,
     offset=0,
     successes_col=11,
-    trials_col=12
+    trials_col=9
 ):
     """
     Compute binomial counts for a single TF on one motif strand for Fiber_seq data.
@@ -408,6 +477,8 @@ def compute_individual_Fiber_seq_TF_binom(
     if successes_col not in modified_bases_df.columns or trials_col not in modified_bases_df.columns:
         raise ValueError(f"successes_col ({successes_col}) or trials_col ({trials_col}) not found in modified_bases_df columns.")
 
+    avg_meth = []
+    avg_possible_A = []
     for _, r1 in one_tf_df.iterrows():
         chrm = r1['chr']
         site_successes = {strand: {b: [0] * tf_len for b in base_names} for strand in signal_strand_names}
@@ -426,11 +497,15 @@ def compute_individual_Fiber_seq_TF_binom(
             pos = int(row[1]) - r1['start']
             if 0 <= pos < tf_len and modified_base in base_names:
                 if strand_info == '+':
-                    site_successes['watson'][modified_base][pos] += succ
-                    site_trials['watson'][modified_base][pos]    += tot
+                    site_successes['watson'][modified_base][pos] += (succ + pseudo_successes)
+                    site_trials['watson'][modified_base][pos]    += (tot + pseudo_trials)
+                    avg_meth += [succ + pseudo_successes]
+                    avg_possible_A += [tot + pseudo_trials]
                 elif strand_info == '-':
-                    site_successes['crick'][modified_base][pos] += succ
-                    site_trials['crick'][modified_base][pos]    += tot
+                    site_successes['crick'][modified_base][pos] += (succ + pseudo_successes)
+                    site_trials['crick'][modified_base][pos]    += (tot + pseudo_trials)
+                    avg_meth += [succ + pseudo_successes]
+                    avg_possible_A += [tot + pseudo_trials]
 
         for strand in signal_strand_names:
             for b in base_names:
@@ -441,7 +516,9 @@ def compute_individual_Fiber_seq_TF_binom(
         'watson_signal': tf_counts['watson'],
         'crick_signal':  tf_counts['crick'],
         'tf_len': tf_len,
-        'num_sites': len(one_tf_df)
+        'num_sites': len(one_tf_df),
+        'avg_meth' : avg_meth,
+        'avg_possible_A' : avg_possible_A
     }
 
 
@@ -451,6 +528,8 @@ def compute_combined_Fiber_seq_TF_binom(
     tf_names_list,
     motif_strand,
     fasta_file,
+    pseudo_successes,
+    pseudo_trials,
     offset=0,
     successes_col=11,
     trials_col=9
@@ -497,11 +576,11 @@ def compute_combined_Fiber_seq_TF_binom(
             pos  = int(row[1]) - start
             if 0 <= pos < tf_len and modified_base in base_names:
                 if strand_info == '+':
-                    site_successes['watson'][modified_base][pos] += succ
-                    site_trials['watson'][modified_base][pos]    += tot
+                    site_successes['watson'][modified_base][pos] += (succ + pseudo_successes)
+                    site_trials['watson'][modified_base][pos]    += (tot + pseudo_trials)
                 elif strand_info == '-':
-                    site_successes['crick'][modified_base][pos] += succ
-                    site_trials['crick'][modified_base][pos]    += tot
+                    site_successes['crick'][modified_base][pos] += (succ + pseudo_successes)
+                    site_trials['crick'][modified_base][pos]    += (tot + pseudo_trials)
 
         # Flatten to global accumulators
         for strand in signal_strand_names:
@@ -517,7 +596,7 @@ def compute_combined_Fiber_seq_TF_binom(
     }
 
 
-def combine_motif_counts_binom(watson_counts, crick_counts):
+def combine_motif_counts_binom(watson_counts, crick_counts, pseudo_successes, pseudo_trials):
     """
     Combine successes and trials across motif orientations to align positions,
     using consistent keys: 'watson_signal' and 'crick_signal'.
@@ -601,6 +680,18 @@ def combine_motif_counts_binom(watson_counts, crick_counts):
             w_rs['crick_signal']['trials'][base],
             c_rs['watson_signal']['trials'][base][:, ::-1]
         ))
+
+    # --- Add pseudo-counts to the LAST ROW for base 'A' only ---
+    ps_succ = np.array(pseudo_successes)
+    ps_tri  = np.array(pseudo_trials)
+
+    # Add to watson_signal
+    combined['watson_signal']['successes']['A'][-1, :] += ps_succ
+    combined['watson_signal']['trials']['A'][-1, :]    += ps_tri
+
+    # Add to crick_signal
+    combined['crick_signal']['successes']['A'][-1, :] += ps_succ
+    combined['crick_signal']['trials']['A'][-1, :]    += ps_tri
 
     return combined
 
@@ -1072,7 +1163,7 @@ def compute_Fiber_seq_nucleosome(
 a = compute_Fiber_seq_TFPhisMus("Fiber_seq",\
                           "/home/rapiduser/projects/DMS-seq/DM1664/DM1664_trim_3prime_18bp_remaining_name_change_sorted.bam",\
                           "/home/rapiduser/projects/Fiber_seq/03202025_barcode01_sup_model_sorted_pileup_all_chr",\
-                          "/home/rapiduser/programs/RoboCOP/analysis/inputs/rossi_peak_w_strand_conformed_to_PWM_abf1_reb1_atf2_azf1_1000_peakVal.bed",\
+                          "/home/rapiduser/programs/RoboCOP/analysis/inputs/rossi_peak_w_strand_conformed_to_PWM_all_TFs_1000_peakVal.bed",\
                             "/home/rapiduser/programs/RoboCOP/analysis/robocop_train/tmpDir",\
                             (0, 80),\
                                 None,\
@@ -1086,5 +1177,5 @@ abf1_reb1_params = a
 # To load the dictionary later, you can use:
 
 # Save the dictionary to a file
-with open('inputs/abf1_reb1_params.pkl', 'wb') as f:
+with open('inputs/all_TF_1000peak_params_w_pseudo.pkl', 'wb') as f:
     pickle.dump(abf1_reb1_params, f)

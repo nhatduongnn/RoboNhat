@@ -77,18 +77,38 @@ def updateMNaseEMMatGamma(args):
 # update data emission matrix using negative binomial distribution parameters
 def updateMNaseEMMatNB(args):
     (d, t, dshared, countParams, tech) = args
-    robocop.update_data_emission_matrix_using_mnase_midpoint_counts_onePhi(d, t, dshared, nuc_phi = countParams['nucLong']['phi'], nuc_mus = countParams['nucLong']['mu']*countParams['nucLong']['scale'], tf_phi = countParams['tfLong']['phi'], tf_mu = countParams['tfLong']['mu'], other_phi = countParams['otherLong']['phi'], other_mu = countParams['otherLong']['mu'], mnaseType = 'long', tech = tech)
-    robocop.update_data_emission_matrix_using_mnase_midpoint_counts_onePhi(d, t, dshared, nuc_phi = countParams['nucShort']['phi'], nuc_mus = countParams['nucShort']['mu']*countParams['nucShort']['scale'], tf_phi = countParams['tfShort']['phi'], tf_mu = countParams['tfShort']['mu'], other_phi = countParams['otherShort']['phi'], other_mu = countParams['otherShort']['mu'], mnaseType = 'short', tech = tech)
-    # robocop.update_data_emission_matrix_using_mnase_midpoint_counts_onePhi(t, dshared, nuc_phi = countParams['nucLong']['phi'], nuc_mus = countParams['nucLong']['mu']*countParams['nucLong']['scale'], tf_phi = countParams['tfLong']['phi'], tf_mu = countParams['tfLong']['mu'], other_phi = countParams['otherLong']['phi'], other_mu = countParams['otherLong']['mu'], mnaseType = 'long', tech = tech)
+    # robocop.update_data_emission_matrix_using_mnase_midpoint_counts_onePhi(d, t, dshared, nuc_phi = countParams['nucLong']['phi'], nuc_mus = countParams['nucLong']['mu']*countParams['nucLong']['scale'], tf_phi = countParams['tfLong']['phi'], tf_mu = countParams['tfLong']['mu'], other_phi = countParams['otherLong']['phi'], other_mu = countParams['otherLong']['mu'], mnaseType = 'long', tech = tech)
+    # robocop.update_data_emission_matrix_using_mnase_midpoint_counts_onePhi(d, t, dshared, nuc_phi = countParams['nucShort']['phi'], nuc_mus = countParams['nucShort']['mu']*countParams['nucShort']['scale'], tf_phi = countParams['tfShort']['phi'], tf_mu = countParams['tfShort']['mu'], other_phi = countParams['otherShort']['phi'], other_mu = countParams['otherShort']['mu'], mnaseType = 'short', tech = tech)
+
+    # # robocop.update_data_emission_matrix_using_mnase_midpoint_counts_onePhi(t, dshared, nuc_phi = countParams['nucLong']['phi'], nuc_mus = countParams['nucLong']['mu']*countParams['nucLong']['scale'], tf_phi = countParams['tfLong']['phi'], tf_mu = countParams['tfLong']['mu'], other_phi = countParams['otherLong']['phi'], other_mu = countParams['otherLong']['mu'], mnaseType = 'long', tech = tech)
     # robocop.update_data_emission_matrix_using_mnase_midpoint_counts_onePhi(t, dshared, nuc_phi = countParams['nucShort']['phi'], nuc_mus = countParams['nucShort']['mu']*countParams['nucShort']['scale'], tf_phi = countParams['tfShort']['phi'], tf_mu = countParams['tfShort']['mu'], other_phi = countParams['otherShort']['phi'], other_mu = countParams['otherShort']['mu'], mnaseType = 'short', tech = tech)
-    # robocop.update_data_emission_matrix_using_fiber_seq_counts_onePhi(t, dshared, nuc_phi = countParams['nucShort']['phi'], nuc_mus = countParams['nucShort']['mu']*countParams['nucShort']['scale'], tf_phi = countParams['tfShort']['phi'], tf_mu = countParams['tfShort']['mu'], other_phi = countParams['otherShort']['phi'], other_mu = countParams['otherShort']['mu'], FiberType = 'watson', tech = tech)
-    # robocop.update_data_emission_matrix_using_fiber_seq_counts_onePhi(t, dshared, nuc_phi = countParams['nucShort']['phi'], nuc_mus = countParams['nucShort']['mu']*countParams['nucShort']['scale'], tf_phi = countParams['tfShort']['phi'], tf_mu = countParams['tfShort']['mu'], other_phi = countParams['otherShort']['phi'], other_mu = countParams['otherShort']['mu'], FiberType = 'crick', tech = tech)
- ## Sets the sequence emission to uniform 1 value so that it doesn't interfere with the results 
+#     robocop.update_data_emission_matrix_using_fiber_seq_counts_onePhi(d, t, dshared, nuc_phi = countParams['nucShort']['phi'], nuc_mus = countParams['nucShort']['mu']*countParams['nucShort']['scale'], tf_phi = countParams['tfShort']['phi'], tf_mu = countParams['tfShort']['mu'], other_phi = countParams['otherShort']['phi'], other_mu = countParams['otherShort']['mu'], FiberType = 'watson', tech = tech)
+#     robocop.update_data_emission_matrix_using_fiber_seq_counts_onePhi(d, t, dshared, nuc_phi = countParams['nucShort']['phi'], nuc_mus = countParams['nucShort']['mu']*countParams['nucShort']['scale'], tf_phi = countParams['tfShort']['phi'], tf_mu = countParams['tfShort']['mu'], other_phi = countParams['otherShort']['phi'], other_mu = countParams['otherShort']['mu'], FiberType = 'crick', tech = tech)
+    robocop.update_data_emission_matrix_using_fiber_seq_counts_Bionomial(d, t, dshared, nuc_phi = countParams['nucShort']['phi'], nuc_mus = countParams['nucShort']['mu']*countParams['nucShort']['scale'], tf_phi = countParams['tfShort']['phi'], tf_mu = countParams['tfShort']['mu'], other_phi = countParams['otherShort']['phi'], other_mu = countParams['otherShort']['mu'], FiberType = 'watson', tech = 'Fiber')
+    robocop.update_data_emission_matrix_using_fiber_seq_counts_Bionomial(d, t, dshared, nuc_phi = countParams['nucShort']['phi'], nuc_mus = countParams['nucShort']['mu']*countParams['nucShort']['scale'], tf_phi = countParams['tfShort']['phi'], tf_mu = countParams['tfShort']['mu'], other_phi = countParams['otherShort']['phi'], other_mu = countParams['otherShort']['mu'], FiberType = 'crick', tech = 'Fiber')
+
+  ## Sets the sequence emission to uniform 1 value so that it doesn't interfere with the results 
     # info_file = dshared['info_file']
     # data_emission_matrix = info_file['segment_' + str(t) + '/emission'][:]
     # data_emission_matrix[0][:] = 1
     # emat = info_file['segment_' + str(t) + '/emission']
     # emat[...] = data_emission_matrix
+
+    print('bob')
+    data_emission_matrix = d['emission']
+
+    ## Set the sequence emission to uniform 1 value so that it doesn't interfere with the results
+    # data_emission_matrix[0][:] = 1
+
+    # add a small value to avoid zero probabilities
+    epsilon = 1e-30
+    data_emission_matrix[data_emission_matrix <= 0] = epsilon
+
+    d['emission'] = data_emission_matrix
+    # # data_emission_matrix[0][:,2799-10:2799] = 0.
+    # # data_emission_matrix[0][:,2799:3330] = 0.3
+
+
 
 
 # Posterior decoding

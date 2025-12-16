@@ -65,6 +65,7 @@ def convert_to_prob(dbf_conc, pwm):
     motif_conc = np.array(motif_conc)
 
     motif_prob = motif_conc * (unbound_prob ** motif_len)
+    print(motif_prob[-1])
     assert motif_prob.sum() > 1.0 - 1e-5
 
     return dict(list(zip(dbfs, motif_prob)))
